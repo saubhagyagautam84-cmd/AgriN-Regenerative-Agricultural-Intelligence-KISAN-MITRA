@@ -466,11 +466,30 @@ RegenConfidenceLabel = Literal["High", "Estimated"]
 
 
 class RegenerationScore(BaseModel):
-    """Output of the Regeneration Score Engine - the dashboard's headline number."""
+    """
+    Output of Part C's Regeneration Score Engine (backend/regeneration_score/) -
+    the dashboard's headline number.
 
-    score: float = Field(..., ge=0.0, le=100.0)
-    confidence: RegenConfidenceLabel
-    breakdown: dict[str, Any] = Field(default_factory=dict)
+    `score`/`confidence`/`breakdown` are null together when all 5 modules
+    failed - see regeneration_score/score_engine.py's edge-case handling.
+    Never fabricate a 0 or 100 in that case; `message` explains why instead.
+    """
+
+    score: Optional[float] = Field(default=None, ge=0.0, le=100.0)
+    confidence: Optional[RegenConfidenceLabel] = None
+    breakdown: Optional[dict[str, Any]] = None
+    score_tone: Optional[str] = None
+    weakest_module: Optional[str] = None
+    improvement_tip: Optional[str] = None
+    message: Optional[str] = Field(
+        default=None, description="Set only when score/confidence/breakdown are null - explains why."
+    )
+    history: Optional[dict[str, Any]] = Field(
+        default=None, description="Simulated from M2's 3-season projection - see regeneration_score/history_tracker.py."
+    )
+    score_drivers: Optional[list[dict[str, Any]]] = Field(
+        default=None, description="Ranked factors pulled from M1/M3's own explainability output - see regeneration_score/explainability.py."
+    )
 
 
 class RegenAnalyzeResponse(BaseModel):

@@ -204,11 +204,18 @@ def main() -> int:
         }
         missing = expected_keys - payload.keys()
         assert not missing, f"{label}: missing keys {missing}"
-        score = payload["regeneration_score"]["score"]
-        assert 0 <= score <= 100, f"{label}: regeneration_score.score {score} out of 0-100"
-        confidence = payload["regeneration_score"]["confidence"]
-        assert confidence in ("High", "Estimated"), f"{label}: unexpected confidence {confidence!r}"
-        print(f"   [OK] {label}: score={score} confidence={confidence}")
+        regen = payload["regeneration_score"]
+        score = regen["score"]
+        assert score is None or 0 <= score <= 100, f"{label}: regeneration_score.score {score} out of 0-100"
+        confidence = regen["confidence"]
+        assert confidence in (None, "High", "Estimated"), f"{label}: unexpected confidence {confidence!r}"
+        if score is not None:
+            # Part C (backend/regeneration_score/) fields - present on every
+            # non-null score, absent (null) only on the all-5-modules-failed path.
+            for key in ("breakdown", "score_tone", "weakest_module", "improvement_tip"):
+                assert regen.get(key) is not None, f"{label}: expected non-null '{key}' alongside a real score"
+            assert regen["weakest_module"] in regen["breakdown"], f"{label}: weakest_module not one of the 5 breakdown entries"
+        print(f"   [OK] {label}: score={score} confidence={confidence} weakest={regen.get('weakest_module')}")
 
     scenarios = {
         "full data (soil test provided)": {
@@ -256,16 +263,42 @@ def main() -> int:
             "irrigation_source": "rainfed",
             "soil_test_available": False,
         },
+        "unresolved PIN (no Soil Health Card on file at all)": {
+            "pincode": "999999",
+            "land_size": 1.0,
+            "land_unit": "hectare",
+            "crop_name": "Rice",
+            "crop_intent": "current",
+            "sowing_date": str(datetime.date.today() - datetime.timedelta(days=20)),
+            "irrigation_source": "canal",
+            "soil_test_available": False,
+        },
     }
     for label, body in scenarios.items():
         status, payload = post_json("/api/regenerate", body)
         assert status == 200, f"{label}: expected HTTP 200, got {status} - {payload}"
         assert_regen_response(label, payload)
 
+    # The unresolved-PIN scenario is the one genuinely missing soil data
+    # (the other "missing soil-test" scenarios still resolve real Soil
+    # Health Card records by PIN regardless of the checkbox) - confirm it
+    # actually produces "Estimated", proving confidence traces real data
+    # provenance rather than the farmer's soil_test_available claim.
+    unresolved_payload = post_json("/api/regenerate", scenarios["unresolved PIN (no Soil Health Card on file at all)"])[1]
+    unresolved_confidence = unresolved_payload["regeneration_score"]["confidence"]
+    assert unresolved_confidence == "Estimated", (
+        f"unresolved PIN should degrade confidence to 'Estimated' (no soil data anywhere to trace back to), got {unresolved_confidence!r}"
+    )
+    print("   [OK] unresolved PIN correctly degrades regeneration_score.confidence to 'Estimated'")
+
     missing_photo_payload = post_json("/api/regenerate", scenarios["missing-photo fallback (crop_health_score omitted)"])[1]
-    crop_health_confidence = missing_photo_payload["regeneration_score"]["breakdown"]["data_confidence"]["crop_health"]
-    assert crop_health_confidence == "estimated", "missing-photo scenario should tag crop_health as 'estimated'"
-    print(f"   [OK] missing-photo fallback correctly tagged crop_health as 'estimated'")
+    m1_reasons = " ".join(
+        r for entry in missing_photo_payload["module_1_rotation"]["details"].get("next_crop_suggestions", []) for r in entry.get("reasons", [])
+    )
+    assert "photo health check flagged stress" not in m1_reasons, (
+        "omitting crop_health_score should assume baseline health (1.0) - M1 should not apply the stress bonus"
+    )
+    print("   [OK] missing-photo fallback correctly assumed baseline health (no stress bonus applied in M1)")
 
     line("8. PART B - /api/crop-health-check")
     sample_photo = find_sample_photo("Potato")

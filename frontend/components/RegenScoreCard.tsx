@@ -1,19 +1,26 @@
 "use client";
 
 /**
- * The Regeneration Score Engine's headline number - a weighted sum of the
- * five module sub-scores, with the confidence label and per-field
- * data_confidence breakdown the Feature Resolver produced.
+ * Part C's Regeneration Score Engine output (backend/regeneration_score/) -
+ * the dashboard's headline number, confidence-weighted per module, with the
+ * weakest module, a simulated improvement tip, and (once Steps 7/8 land)
+ * history and score_drivers.
  */
 
 import type { RegenerationScore } from "@/lib/types";
 
-const SUB_SCORE_LABELS: Record<string, string> = {
-  carbon_trend_score: "Soil carbon (M2)",
-  fertilizer_efficiency: "Fertiliser efficiency (M3)",
-  rotation_health: "Rotation health (M1)",
-  cover_crop_diversity: "Cover-crop diversity (M4)",
-  water_efficiency: "Water efficiency (M5)",
+const MODULE_LABELS: Record<string, string> = {
+  M1_rotation: "Rotation (M1)",
+  M2_soil_carbon: "Soil carbon (M2)",
+  M3_fertilizer: "Fertiliser efficiency (M3)",
+  M4_cover_crop: "Cover-crop diversity (M4)",
+  M5_irrigation: "Water efficiency (M5)",
+};
+
+const CONFIDENCE_BADGE: Record<string, { label: string; className: string }> = {
+  observed: { label: "observed", className: "bg-crop-100 text-crop-700" },
+  district_avg: { label: "district avg", className: "bg-amber-100 text-amber-900" },
+  estimated: { label: "estimated", className: "bg-red-100 text-red-800" },
 };
 
 function scoreColor(score: number): string {
@@ -23,8 +30,26 @@ function scoreColor(score: number): string {
 }
 
 export default function RegenScoreCard({ regen }: { regen: RegenerationScore }) {
+  if (regen.score == null || regen.breakdown == null) {
+    return (
+      <section
+        data-testid="regen-score-card"
+        className="rounded-2xl border-2 border-soil-200 bg-soil-50 p-5 shadow-sm"
+      >
+        <h2 className="text-2xl font-bold">
+          Regeneration Score
+          <span className="block text-sm font-normal text-soil-700">पुनर्जनन स्कोर</span>
+        </h2>
+        <p className="mt-3 text-lg text-soil-800">
+          {regen.message ?? "Insufficient data - please complete soil test"}
+        </p>
+      </section>
+    );
+  }
+
   const circumference = 2 * Math.PI * 54;
   const offset = circumference * (1 - regen.score / 100);
+  const { _conflicts, ...moduleEntries } = regen.breakdown;
 
   return (
     <section
@@ -59,47 +84,84 @@ export default function RegenScoreCard({ regen }: { regen: RegenerationScore }) 
             Regeneration Score
             <span className="block text-sm font-normal text-soil-700">पुनर्जनन स्कोर</span>
           </h2>
-          <span
-            className={`mt-1 inline-block rounded-full px-3 py-1 text-sm font-bold ${
-              regen.confidence === "High" ? "bg-crop-100 text-crop-700" : "bg-amber-100 text-amber-900"
-            }`}
-          >
-            {regen.confidence === "High" ? "✅ High confidence" : "⚠️ Estimated (add a soil test to improve)"}
-          </span>
+          <div className="mt-1 flex flex-wrap gap-2">
+            <span
+              className={`inline-block rounded-full px-3 py-1 text-sm font-bold ${
+                regen.confidence === "High" ? "bg-crop-100 text-crop-700" : "bg-amber-100 text-amber-900"
+              }`}
+            >
+              {regen.confidence === "High" ? "✅ High confidence" : "⚠️ Estimated (add a soil test to improve)"}
+            </span>
+            {regen.score_tone && (
+              <span className="inline-block rounded-full bg-soil-100 px-3 py-1 text-sm font-bold text-soil-800 capitalize">
+                {regen.score_tone}
+              </span>
+            )}
+          </div>
 
           <div className="mt-4 space-y-2">
-            {Object.entries(regen.breakdown.sub_scores).map(([key, value]) => (
-              <div key={key}>
-                <div className="flex justify-between text-sm">
-                  <span>{SUB_SCORE_LABELS[key] ?? key}</span>
-                  <span className="font-semibold tabular-nums">{value}/100</span>
+            {Object.entries(moduleEntries).map(([key, entry]) => {
+              const badge = CONFIDENCE_BADGE[entry.confidence] ?? CONFIDENCE_BADGE.estimated;
+              return (
+                <div key={key}>
+                  <div className="flex items-center justify-between gap-2 text-sm">
+                    <span className="flex items-center gap-2">
+                      {MODULE_LABELS[key] ?? key}
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badge.className}`}>
+                        {badge.label}
+                      </span>
+                    </span>
+                    <span className="font-semibold tabular-nums">{entry.score}/100</span>
+                  </div>
+                  <div className="mt-0.5 h-1.5 overflow-hidden rounded-full bg-soil-100">
+                    <div className="h-full rounded-full bg-crop-500" style={{ width: `${entry.score}%` }} />
+                  </div>
                 </div>
-                <div className="mt-0.5 h-1.5 overflow-hidden rounded-full bg-soil-100">
-                  <div className="h-full rounded-full bg-crop-500" style={{ width: `${value}%` }} />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
 
-      <details className="mt-4">
-        <summary className="cursor-pointer text-sm font-semibold text-soil-700">
-          Data confidence per field / डेटा भरोसा
-        </summary>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {Object.entries(regen.breakdown.data_confidence).map(([field, confidence]) => (
-            <span
-              key={field}
-              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                confidence === "observed" ? "bg-crop-100 text-crop-700" : "bg-amber-100 text-amber-900"
-              }`}
-            >
-              {field.replace(/_/g, " ")}: {confidence}
-            </span>
-          ))}
+      {regen.improvement_tip && (
+        <p className="mt-4 rounded-xl bg-crop-50 px-4 py-3 text-base">
+          <span aria-hidden>💡 </span>
+          {regen.improvement_tip}
+        </p>
+      )}
+
+      {_conflicts && _conflicts.length > 0 && (
+        <div className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <strong>Mixed signals:</strong>
+          <ul className="mt-1 list-inside list-disc">
+            {_conflicts.map((c, i) => (
+              <li key={i}>{c}</li>
+            ))}
+          </ul>
         </div>
-      </details>
+      )}
+
+      {regen.history && (
+        <p className="mt-3 text-sm text-soil-700">
+          <strong>{regen.history.trend}</strong>
+        </p>
+      )}
+
+      {regen.score_drivers && regen.score_drivers.length > 0 && (
+        <div className="mt-4">
+          <h3 className="text-sm font-bold text-soil-800">What's driving this score</h3>
+          <ul className="mt-1 space-y-1">
+            {regen.score_drivers.map((driver, i) => (
+              <li key={i} className="flex justify-between text-sm">
+                <span>{driver.factor}</span>
+                <span className={driver.impact.startsWith("-") ? "text-red-700" : "text-crop-700"}>
+                  {driver.impact}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }

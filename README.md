@@ -205,6 +205,13 @@ agri-monitor/
 │   ├── models/
 │   │   ├── __init__.py
 │   │   └── schemas.py
+│   ├── regeneration_score/
+│   │   ├── __init__.py
+│   │   ├── adapters.py
+│   │   ├── confidence.py
+│   │   ├── normalizer.py
+│   │   ├── score_engine.py
+│   │   └── test_edge_cases.py
 │   ├── services/
 │   │   ├── modules/
 │   │   ├── regen/

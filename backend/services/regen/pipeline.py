@@ -18,10 +18,11 @@ from __future__ import annotations
 import traceback
 from typing import Any, Callable
 
-from models.schemas import AggregatedData, FarmInput, ModuleResponse, RegenAnalyzeResponse
+from models.schemas import AggregatedData, FarmInput, ModuleResponse, RegenAnalyzeResponse, RegenerationScore
+from regeneration_score.adapters import adapt_all_modules
+from regeneration_score.score_engine import compute_regeneration_score
 from services.regen import m1_rotation, m2_soil_carbon, m3_fertilizer, m4_cover_cropping, m5_irrigation
 from services.regen.feature_resolver import build_enriched_feature_vector
-from services.regen.regen_score import compute_regeneration_score
 
 
 def _safe(name: str, fn: Callable[[], ModuleResponse]) -> ModuleResponse:
@@ -58,15 +59,33 @@ def run_regen_pipeline(farm_input: FarmInput, aggregated: AggregatedData) -> Reg
         lambda: m2_soil_carbon.run(vector, severity, m1_response.details, m4_response.details),
     )
 
-    # --- 8. Regeneration Score Engine ---------------------------------------
-    regen_score = compute_regeneration_score(
-        farm_input,
-        vector,
-        m1_response.details,
-        m2_response.details,
-        m3_response.details,
-        m4_response.details,
-        m5_response.details,
+    # --- 8. Regeneration Score Engine (Part C) -------------------------------
+    # A module in "error" status contributes None to the engine, which
+    # triggers the all-5-missing null-score edge case only when every module
+    # errored - a single failed module still produces a real score (see
+    # regeneration_score/test_edge_cases.py::test_one_module_missing_still_scores).
+    module_responses = {
+        "M1_rotation": m1_response,
+        "M2_soil_carbon": m2_response,
+        "M3_fertilizer": m3_response,
+        "M4_cover_crop": m4_response,
+        "M5_irrigation": m5_response,
+    }
+    adapted = adapt_all_modules(
+        vector, m1_response.details, m2_response.details, m3_response.details, m4_response.details, m5_response.details
+    )
+    adapted_or_none = {
+        name: (None if module_responses[name].status == "error" else adapted[name]) for name in adapted
+    }
+    score_result = compute_regeneration_score(adapted_or_none)
+    regen_score = RegenerationScore(
+        score=score_result["regeneration_score"],
+        confidence=score_result["confidence_level"],
+        breakdown=score_result["breakdown"],
+        score_tone=score_result.get("score_tone"),
+        weakest_module=score_result.get("weakest_module"),
+        improvement_tip=score_result.get("improvement_tip"),
+        message=score_result.get("message"),
     )
 
     return RegenAnalyzeResponse(

@@ -462,15 +462,46 @@ export interface RegenIrrigationDetails {
 
 export type RegenConfidenceLabel = "High" | "Estimated";
 
-export interface RegenerationScore {
+export type RegenModuleConfidence = "observed" | "district_avg" | "estimated";
+
+export interface RegenBreakdownEntry {
   score: number;
-  confidence: RegenConfidenceLabel;
-  breakdown: {
-    weights: Record<string, number>;
-    sub_scores: Record<string, number>;
-    weighted_contributions: Record<string, number>;
-    data_confidence: Record<string, "observed" | "estimated">;
-  };
+  weight: number;
+  confidence: RegenModuleConfidence;
+}
+
+export interface RegenScoreDriver {
+  factor: string;
+  impact: string;
+}
+
+export interface RegenHistoryPoint {
+  date: string;
+  score: number;
+}
+
+export interface RegenHistory {
+  farm_id: string;
+  history: RegenHistoryPoint[];
+  trend: string;
+}
+
+/**
+ * Part C's Output Contract (backend/regeneration_score/). score/confidence/
+ * breakdown are null together only when all 5 modules failed - see
+ * score_engine.py's edge-case handling. `history`/`score_drivers` stay null
+ * until Steps 7/8 are built - never faked as empty-looking real output.
+ */
+export interface RegenerationScore {
+  score: number | null;
+  confidence: RegenConfidenceLabel | null;
+  breakdown: (Record<string, RegenBreakdownEntry> & { _conflicts?: string[] }) | null;
+  score_tone?: string | null;
+  weakest_module?: string | null;
+  improvement_tip?: string | null;
+  message?: string | null;
+  history?: RegenHistory | null;
+  score_drivers?: RegenScoreDriver[] | null;
 }
 
 export interface RegenAnalyzeResponse {
