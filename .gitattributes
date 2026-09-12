@@ -1,2 +1,19 @@
+# Force LF regardless of the cloning machine's core.autocrlf - a shell
+# script or git hook checked out with CRLF breaks its #!/usr/bin/env
+# shebang ("bash\r": no such file). This bit anyone who clones this repo
+# fresh on Windows with the common core.autocrlf=true default.
+* text=auto eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+.githooks/* text eol=lf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary - never touch line endings, never diff as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+
 *.h5 filter=lfs diff=lfs merge=lfs -text
 *.tflite filter=lfs diff=lfs merge=lfs -text
