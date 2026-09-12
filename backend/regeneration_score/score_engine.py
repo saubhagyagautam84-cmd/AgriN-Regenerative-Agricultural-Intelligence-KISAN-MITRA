@@ -67,19 +67,51 @@ def _find_weakest_module(adapted_modules: dict[str, dict[str, Any]]) -> str:
     return min(adapted_modules, key=lambda name: adjusted_score(adapted_modules[name]))
 
 
+CONFIDENCE_TIP_TEMPLATE = (
+    "{module}'s reading is already good but based on {confidence} data - a real "
+    "soil test or on-farm confirmation there could raise your score by ~{delta} points"
+)
+
+
 def _simulate_improvement_tip(
     adapted_modules: dict[str, dict[str, Any]],
     weights: dict[str, float],
     weakest_module: str,
     current_score: float,
 ) -> str:
-    """Recompute regen_score with the weakest module bumped to GOOD_TARGET_SCORE - the delta is real, not hardcoded."""
+    """
+    Recompute regen_score with the weakest module improved - the delta is
+    real, not hardcoded. "Weakest" is picked by CONFIDENCE-ADJUSTED score
+    (per spec), which means the actual lever worth simulating depends on
+    WHY it's weakest:
+
+      - raw_score is genuinely low -> simulate raising the raw score to
+        GOOD_TARGET_SCORE (the module's real reading needs to improve).
+      - raw_score is already good but confidence is low (estimated/
+        district_avg) -> simulate raising CONFIDENCE to "observed" instead.
+        Bumping an already-good raw_score toward GOOD_TARGET_SCORE here
+        would produce a NEGATIVE delta (a nonsensical "raise your score by
+        ~-3 points") - this branch is what fixes that.
+    """
     simulated = {name: dict(module) for name, module in adapted_modules.items()}
-    simulated[weakest_module]["raw_score"] = GOOD_TARGET_SCORE
+    current_module = adapted_modules[weakest_module]
+
+    if current_module["raw_score"] < GOOD_TARGET_SCORE:
+        simulated[weakest_module]["raw_score"] = GOOD_TARGET_SCORE
+        simulated_score = _compute_total(simulated, weights)
+        delta = round(simulated_score - current_score, 1)
+        template = TIP_TEMPLATES.get(weakest_module, "Improving {module} could raise your score by ~{delta} points")
+        return template.format(module=weakest_module, delta=delta)
+
+    # Raw score is already at/above target - the real lever is confidence.
+    simulated[weakest_module]["confidence_source"] = "observed"
     simulated_score = _compute_total(simulated, weights)
     delta = round(simulated_score - current_score, 1)
-    template = TIP_TEMPLATES.get(weakest_module, "Improving {module} could raise your score by ~{delta} points")
-    return template.format(module=weakest_module, delta=delta)
+    if delta <= 0:
+        return f"{weakest_module.replace('_', ' ')} is already performing well with solid data - no urgent action needed."
+    return CONFIDENCE_TIP_TEMPLATE.format(
+        module=weakest_module.replace("_", " "), confidence=current_module["confidence_source"].replace("_", " "), delta=delta
+    )
 
 
 def _detect_conflicts(adapted_modules: dict[str, dict[str, Any]]) -> list[str]:

@@ -99,6 +99,29 @@ def test_dynamic_weights_always_sum_to_one() -> None:
     print("[PASS] test_dynamic_weights_always_sum_to_one (all 14 combinations)")
 
 
+def test_improvement_tip_never_negative_for_high_raw_score() -> None:
+    """
+    Regression test: a module can be "weakest" purely because of low
+    CONFIDENCE even when its raw_score is already excellent. Naively
+    simulating a bump toward GOOD_TARGET_SCORE in that case would LOWER the
+    simulated score, producing a nonsensical "could raise your score by
+    ~-3 points". Found via manual audit, fixed by branching the simulation
+    on confidence instead of raw_score when raw_score is already high.
+    """
+    modules = {
+        "M1_rotation": mock_module(95, "observed"),
+        "M2_soil_carbon": mock_module(95, "observed"),
+        "M3_fertilizer": mock_module(95, "observed"),
+        "M4_cover_crop": mock_module(95, "estimated"),  # weakest by confidence, not by raw performance
+        "M5_irrigation": mock_module(95, "observed"),
+    }
+    result = compute_regeneration_score(modules)
+
+    assert result["weakest_module"] == "M4_cover_crop"
+    assert "~-" not in result["improvement_tip"], f"improvement_tip must never show a negative delta: {result['improvement_tip']!r}"
+    print(f"[PASS] test_improvement_tip_never_negative_for_high_raw_score (tip={result['improvement_tip']!r})")
+
+
 def test_dynamic_weights_wired_into_engine() -> None:
     """Rain-fed + no soil test should shift weight away from M5/M3 and toward M1/M2/M4, changing the final score."""
     raw = {name: mock_module(70) for name in STATIC_WEIGHTS}
@@ -123,6 +146,7 @@ if __name__ == "__main__":
     test_extremely_high_score_tone()
     test_conflicting_modules_surfaced()
     test_weights_always_sum_to_one()
+    test_improvement_tip_never_negative_for_high_raw_score()
     test_dynamic_weights_always_sum_to_one()
     test_dynamic_weights_wired_into_engine()
     print("\nAll edge case tests passed.")
