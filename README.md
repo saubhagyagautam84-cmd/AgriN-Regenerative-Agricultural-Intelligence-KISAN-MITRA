@@ -209,6 +209,7 @@ agri-monitor/
 │   │   ├── __init__.py
 │   │   ├── adapters.py
 │   │   ├── confidence.py
+│   │   ├── dynamic_weights.py
 │   │   ├── normalizer.py
 │   │   ├── score_engine.py
 │   │   └── test_edge_cases.py

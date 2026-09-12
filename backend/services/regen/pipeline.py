@@ -20,6 +20,7 @@ from typing import Any, Callable
 
 from models.schemas import AggregatedData, FarmInput, ModuleResponse, RegenAnalyzeResponse, RegenerationScore
 from regeneration_score.adapters import adapt_all_modules
+from regeneration_score.dynamic_weights import get_dynamic_weights
 from regeneration_score.score_engine import compute_regeneration_score
 from services.regen import m1_rotation, m2_soil_carbon, m3_fertilizer, m4_cover_cropping, m5_irrigation
 from services.regen.feature_resolver import build_enriched_feature_vector
@@ -77,7 +78,11 @@ def run_regen_pipeline(farm_input: FarmInput, aggregated: AggregatedData) -> Reg
     adapted_or_none = {
         name: (None if module_responses[name].status == "error" else adapted[name]) for name in adapted
     }
-    score_result = compute_regeneration_score(adapted_or_none)
+    weights = get_dynamic_weights(
+        water_source=farm_input.irrigation_source,
+        has_soil_test=farm_input.soil_test_available,
+    )
+    score_result = compute_regeneration_score(adapted_or_none, weights=weights)
     regen_score = RegenerationScore(
         score=score_result["regeneration_score"],
         confidence=score_result["confidence_level"],

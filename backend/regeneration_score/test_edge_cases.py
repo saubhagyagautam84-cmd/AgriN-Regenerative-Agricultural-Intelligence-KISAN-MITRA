@@ -9,6 +9,7 @@ smoke_test.py style):
 
 from __future__ import annotations
 
+from regeneration_score.dynamic_weights import get_dynamic_weights
 from regeneration_score.score_engine import compute_regeneration_score, STATIC_WEIGHTS
 
 
@@ -88,10 +89,40 @@ def test_weights_always_sum_to_one() -> None:
         print("[PASS] test_weights_always_sum_to_one (correctly rejected 0.95 total)")
 
 
+def test_dynamic_weights_always_sum_to_one() -> None:
+    """Step 6's own easy-silent-bug warning - test every water_source x has_soil_test combination."""
+    for water_source in ("rainfed", "canal", "borewell", "tubewell", "tank_pond", "drip_sprinkler", "other"):
+        for has_soil_test in (True, False):
+            weights = get_dynamic_weights(water_source, has_soil_test)
+            total = round(sum(weights.values()), 6)
+            assert total == 1.0, f"dynamic weights for water_source={water_source!r}, has_soil_test={has_soil_test} summed to {total}, not 1.0"
+    print("[PASS] test_dynamic_weights_always_sum_to_one (all 14 combinations)")
+
+
+def test_dynamic_weights_wired_into_engine() -> None:
+    """Rain-fed + no soil test should shift weight away from M5/M3 and toward M1/M2/M4, changing the final score."""
+    raw = {name: mock_module(70) for name in STATIC_WEIGHTS}
+    raw["M5_irrigation"] = mock_module(20)  # deliberately weak, so de-weighting it should raise the total
+
+    static_result = compute_regeneration_score(raw, weights=STATIC_WEIGHTS)
+    dynamic_weights = get_dynamic_weights("rainfed", has_soil_test=False)
+    dynamic_result = compute_regeneration_score(raw, weights=dynamic_weights)
+
+    assert dynamic_result["regeneration_score"] != static_result["regeneration_score"], (
+        "dynamic weights should change the outcome vs static weights on the same raw data"
+    )
+    print(
+        f"[PASS] test_dynamic_weights_wired_into_engine "
+        f"(static={static_result['regeneration_score']}, dynamic/rainfed+no-soil-test={dynamic_result['regeneration_score']})"
+    )
+
+
 if __name__ == "__main__":
     test_all_modules_missing()
     test_one_module_missing_still_scores()
     test_extremely_high_score_tone()
     test_conflicting_modules_surfaced()
     test_weights_always_sum_to_one()
+    test_dynamic_weights_always_sum_to_one()
+    test_dynamic_weights_wired_into_engine()
     print("\nAll edge case tests passed.")
