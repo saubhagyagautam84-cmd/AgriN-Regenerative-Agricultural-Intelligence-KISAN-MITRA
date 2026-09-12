@@ -230,6 +230,8 @@ agri-monitor/
 │   ├── .env.local
 │   ├── .env.local.example
 │   ├── .gitignore
+│   ├── AGENTS.md
+│   ├── CLAUDE.md
 │   ├── next-env.d.ts
 │   ├── next.config.mjs
 │   ├── package-lock.json
