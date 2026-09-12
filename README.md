@@ -1,14 +1,23 @@
-# 🌾 Kisan Sathi — AI Crop & Farming Monitor (Part A)
+# 🌾 Kisan Sathi — AI Crop & Farming Monitor
 
-A farmer enters **4 things** — PIN code, land size, crop, sowing date — and the
-system fetches or computes everything else (soil health card, weather, crop
-agronomy) and returns four pieces of advice on a dashboard.
+A farmer enters **4 required things** — PIN code, land size, crop, sowing
+date — plus optional soil-test numbers and a crop photo, and the system
+fetches or computes everything else (soil health card, weather, crop
+agronomy) and returns a full dashboard.
 
-**This is Part A: the skeleton.** Every advisory number you see is produced by
-a transparent rule-based stub, clearly marked `DEMO DATA` in the UI and
-`details.is_dummy_data = true` in the JSON. The point of Part A is the
-*contract* — so real ML models can be dropped in one at a time without
-touching the frontend.
+**Part A** (the original skeleton) is 4 rule-based advisory modules -
+transparent stubs, clearly marked `DEMO DATA` in the UI and
+`details.is_dummy_data = true` in the JSON, designed so real models can be
+dropped in one at a time without touching the frontend.
+
+**Part B** (the Regenerative Intelligence Engine) is a second pipeline on
+top: a Feature Resolver, 5 more modules with real cross-module dependencies
+(M1's rotation advice reweights based on M2's soil-depletion severity),
+a Regeneration Score Engine, and a trained crop-health CNN
+(MobileNetV2 on PlantVillage, 91.6% validation accuracy on Corn/Potato/
+Soybean). M3 and M5 use real fitted models (RandomForestRegressor,
+LinearRegression); M1/M2/M4 are rule-based with a KNN ranking layer. See
+`backend/services/regen/` and the API reference below.
 
 ---
 
@@ -51,11 +60,8 @@ npm run dev
 Open <http://localhost:3000> and press **▶ Load demo farm**, or fill the form
 (try PIN `141001` + Wheat, or `462001` + Soybean).
 
-> ⚠️ **Node.js is required and was not installed on the build machine.**
-> `C:\Program Files\nodejs` had `npm.cmd` but no `node.exe` — a broken install.
-> Fix with `winget install OpenJS.NodeJS.LTS`, restart your terminal, then
-> confirm with `node --version`. The frontend has therefore **not been run
-> yet** — see [Status](#status) below.
+> Node.js is required. If `node --version` fails, install it with
+> `winget install OpenJS.NodeJS.LTS` and restart your terminal.
 
 ### Terminal 3 — CNN crop-health check (optional, Part B)
 
@@ -318,23 +324,18 @@ when advice is based on a neighbour's soil rather than their own.
 
 | Piece | State |
 |---|---|
-| Backend datasets + loader + error handling | ✅ verified (`smoke_test.py`) |
-| Aggregator (STEP 3) | ✅ verified — resolves `gehu` → Wheat, PIN 141001 → Ludhiana, 2 soil samples averaged |
-| All 4 modules (STEP 4) | ✅ verified, `ok` and `partial` paths both exercised |
-| All 9 HTTP endpoints | ✅ verified over HTTP on port 8001 |
-| Missing-data path (unknown PIN + unknown crop) | ✅ verified — degrades to `partial`, never crashes |
-| Frontend static checks (imports, config, Tailwind palette, `use client`, contract match) | ✅ 63/63 pass |
-| Frontend compiled + rendered (STEP 1 + STEP 5) | ⚠️ **not done** — Node.js is not installed on the build machine |
+| Part A: backend datasets + loader + error handling | ✅ verified (`smoke_test.py`) |
+| Part A: aggregator + all 4 modules, over real HTTP | ✅ verified |
+| Part A: frontend compiled, built, and rendered in a real browser | ✅ verified (Playwright, see `visual_checks/`) |
+| Part B: Feature Resolver + all 5 modules + Regeneration Score Engine | ✅ verified over real HTTP, cross-module dependencies (M1←M2, M2←M1/M4) confirmed live |
+| Part B: crop-health CNN (MobileNetV2, PlantVillage) | ✅ trained (91.6% val accuracy on Corn/Potato/Soybean), served via a live subprocess bridge, unsupported-crop fallback verified |
+| Missing-data paths (unknown PIN, unknown crop, no soil test, no photo) | ✅ verified — all degrade to `partial`/`estimated`, never crash |
+| `verify.sh` (smoke test + Playwright, both Parts) | ✅ green |
+| `npm audit` | ✅ 0 vulnerabilities |
 
-The frontend is complete and passes every check that can be made without a
-compiler: all 16 imports resolve, both config files parse, every `soil-*` /
-`crop-*` Tailwind class exists in the palette, every file using hooks declares
-`"use client"`, brackets balance, and all six `ModuleResponse` fields match
-between `schemas.py` and `types.ts`.
-
-What that does **not** prove: type errors, JSX nesting, React runtime
-behaviour. `node.exe` is missing (see the warning in Quick start), so `tsc`
-has never run. Expect to fix a small typo or two on first `npm run dev`.
+Every row above was confirmed by actually running the thing (HTTP requests,
+a real headless browser, `npm audit`), not inferred from static checks — see
+`git log` for the sequence this was built and verified in.
 
 ---
 
@@ -345,8 +346,16 @@ has never run. Expect to fix a small typo or two on first `npm run dev`.
   all day. No network call is made. Swap for Open-Meteo (free, no API key).
 - **15 PIN codes only.** Anything else falls back to "location not resolved"
   and the advice goes generic — deliberately visible in the UI.
-- **All advice is rule-based**, using published rating bands and simple water
-  balance. No model has been trained.
+- **Part A's 4 modules are rule-based** (published rating bands + simple
+  water balance). **Part B's M3 (fertiliser) and M5 (irrigation) are real
+  trained/fitted models** (RandomForestRegressor, LinearRegression) but on
+  synthetic training data — no real farm-outcome dataset exists yet; see each
+  module's docstring for exactly what the synthetic labels are grounded in.
+- **The crop-health CNN only recognises Corn, Potato and Soybean** (3 of 18
+  crops) — PlantVillage's dataset limitation, not a bug. Every other crop's
+  photo gets an honest `unsupported_crop` result. Tracked in `FUTURE_WORK.md`.
+- **`npk_stage_split.json` is category-level**, not bespoke per crop — see
+  `FUTURE_WORK.md`.
 - **Bigha is assumed to be 0.2529 ha** (UP/Bihar). It varies by state; a
   warning is attached to the response.
 - **No database, no auth, no persistence.** Nothing is stored between requests.
