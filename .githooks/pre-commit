@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Keeps README.md and docs/field-spec.md from silently drifting out of sync
+# with the code they're generated from (see scripts/generate_readme.py and
+# scripts/generate_field_spec.py). Fails the commit if either is stale.
+#
+# Installed via: git config core.hooksPath .githooks   (see README > Contributing)
+
+cd "$(dirname "$0")/.."
+
+PYTHON="backend/.venv/Scripts/python.exe"
+
+# No `set -e` here on purpose - each check must run and report even if an
+# earlier one fails, so a single pre-commit run shows every problem at once.
+
+echo "Checking README.md is up to date..."
+PYTHONUTF8=1 "$PYTHON" scripts/generate_readme.py --check
+README_STATUS=$?
+
+echo "Checking docs/field-spec.md is up to date..."
+PYTHONUTF8=1 "$PYTHON" scripts/generate_field_spec.py --check
+FIELD_SPEC_STATUS=$?
+
+echo "Checking every API route has a smoke test..."
+PYTHONUTF8=1 "$PYTHON" scripts/check_coverage.py
+COVERAGE_STATUS=$?
+
+if [ $README_STATUS -ne 0 ] || [ $FIELD_SPEC_STATUS -ne 0 ] || [ $COVERAGE_STATUS -ne 0 ]; then
+  echo ""
+  echo "Pre-commit check failed - see messages above."
+  exit 1
+fi
+
+exit 0

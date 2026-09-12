@@ -1,0 +1,21 @@
+sample_id,state,district,block,village,pincode,soil_type,test_date,N_kg_per_ha,P_kg_per_ha,K_kg_per_ha,pH,EC_dS_per_m,organic_carbon_pct,S_ppm,Zn_ppm,Fe_ppm,Cu_ppm,Mn_ppm,B_ppm
+SHC-PB-141001-001,Punjab,Ludhiana,Ludhiana-I,Pakhowal,141001,Alluvial loam,2025-06-14,238,21.5,148,7.8,0.34,0.41,9.2,0.62,6.1,0.44,4.8,0.38
+SHC-PB-141001-002,Punjab,Ludhiana,Ludhiana-I,Jargari,141001,Sandy loam,2025-06-18,252,18.9,132,8.1,0.41,0.38,8.1,0.55,5.4,0.39,4.1,0.31
+SHC-PB-143001-001,Punjab,Amritsar,Ajnala,Chamiari,143001,Alluvial loam,2025-05-30,268,24.2,161,7.6,0.29,0.47,11.4,0.71,7.3,0.51,5.6,0.42
+SHC-MP-462001-001,Madhya Pradesh,Bhopal,Phanda,Bilkisganj,462001,Black cotton (Vertisol),2025-07-02,301,14.8,412,7.9,0.28,0.55,13.6,0.48,9.2,0.86,7.4,0.35
+SHC-MP-462001-002,Madhya Pradesh,Bhopal,Phanda,Kolua,462001,Black cotton (Vertisol),2025-07-05,289,12.1,398,8.2,0.33,0.51,12.2,0.42,8.7,0.79,6.9,0.29
+SHC-MP-452001-001,Madhya Pradesh,Indore,Indore,Rau,452001,Medium black,2025-06-25,276,16.4,371,7.7,0.24,0.61,14.8,0.58,10.1,0.92,8.1,0.44
+SHC-MH-413001-001,Maharashtra,Solapur,Mohol,Kurul,413001,Shallow black,2025-08-11,198,9.6,289,8.4,0.52,0.34,8.8,0.36,4.9,0.61,5.2,0.24
+SHC-MH-413001-002,Maharashtra,Solapur,Mohol,Shirapur,413001,Shallow black,2025-08-13,211,11.2,304,8.6,0.61,0.31,7.9,0.31,4.2,0.55,4.6,0.21
+SHC-MH-422001-001,Maharashtra,Nashik,Nashik,Ozar,422001,Medium black,2025-07-28,244,19.7,318,7.4,0.31,0.58,12.9,0.64,8.4,0.74,6.7,0.39
+SHC-MH-431001-001,Maharashtra,Chhatrapati Sambhajinagar,Paithan,Bidkin,431001,Deep black,2025-08-02,229,13.4,341,8.1,0.44,0.46,10.6,0.44,7.1,0.68,6.1,0.28
+SHC-UP-221001-001,Uttar Pradesh,Varanasi,Harahua,Chiraigaon,221001,Alluvial,2025-06-09,214,17.3,178,7.2,0.26,0.44,9.8,0.52,8.9,0.47,5.9,0.36
+SHC-UP-226001-001,Uttar Pradesh,Lucknow,Mall,Kakori,226001,Alluvial loam,2025-06-21,231,20.1,192,7.9,0.38,0.39,8.4,0.49,7.6,0.43,5.1,0.33
+SHC-UP-250001-001,Uttar Pradesh,Meerut,Meerut,Sardhana,250001,Sandy loam,2025-05-28,259,22.8,204,7.5,0.22,0.52,10.2,0.68,9.4,0.56,6.4,0.41
+SHC-BR-800001-001,Bihar,Patna,Patna Sadar,Naubatpur,800001,Calcareous alluvial,2025-07-16,196,15.6,167,8.3,0.35,0.36,7.6,0.38,6.8,0.41,4.4,0.26
+SHC-BR-842001-001,Bihar,Muzaffarpur,Musahri,Kanti,842001,Calcareous alluvial,2025-07-19,187,13.9,154,8.5,0.42,0.33,6.9,0.34,6.2,0.37,4.0,0.22
+SHC-KA-577001-001,Karnataka,Davanagere,Davanagere,Anagodu,577001,Red sandy loam,2025-08-22,176,26.4,142,6.3,0.18,0.48,9.1,0.74,11.2,0.88,7.8,0.31
+SHC-TN-641001-001,Tamil Nadu,Coimbatore,Thondamuthur,Perur,641001,Red loam,2025-08-30,208,28.1,196,6.8,0.21,0.53,11.8,0.81,12.4,0.94,8.6,0.46
+SHC-TN-641001-002,Tamil Nadu,Coimbatore,Thondamuthur,Madukkarai,641001,Red loam,2025-09-01,215,NA,188,NA,0.19,0.49,10.4,0.77,11.9,0.90,8.2,0.43
+SHC-XX-000000-001,,,,,,Unknown,2025-09-02,180,12,150,7.0,0.30,0.40,8.0,0.50,7.0,0.50,5.0,0.30
+SHC-RJ-302001-001,Rajasthan,Jaipur,Sanganer,Bagru,302001,Sandy,2025-07-10,164,18.2,138,8.2,0.47,0.29,7.2,0.41,5.8,0.44,4.9,0.27,STRAY_EXTRA_FIELD

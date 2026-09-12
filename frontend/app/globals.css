@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-soil-50 text-soil-900 antialiased;
+  }
+
+  /* Large, obvious focus ring - important for low-literacy users who
+     navigate slowly and need to see where they are. */
+  :focus-visible {
+    @apply outline outline-4 outline-offset-2 outline-crop-500;
+  }
+}
+
+@layer components {
+  /* Every tappable thing is at least 48px tall (Android touch target). */
+  .touch-target {
+    @apply min-h-[3rem] px-4;
+  }
+
+  .field-label {
+    @apply block text-lg font-semibold text-soil-900;
+  }
+
+  .field-hint {
+    @apply block text-sm font-normal text-soil-700;
+  }
+
+  .text-input {
+    @apply w-full rounded-xl border-2 border-soil-100 bg-white px-4 py-3 text-lg
+           text-soil-900 shadow-sm transition
+           focus:border-crop-500 focus:outline-none;
+  }
+
+  .text-input-error {
+    @apply border-red-500 bg-red-50;
+  }
+
+  .choice-chip {
+    @apply flex min-h-[3.25rem] items-center justify-center gap-2 rounded-xl border-2
+           border-soil-100 bg-white px-3 py-2 text-base font-semibold text-soil-900
+           transition hover:border-crop-500;
+  }
+
+  .choice-chip-active {
+    @apply border-crop-600 bg-crop-50 text-crop-700 shadow-sm;
+  }
+}

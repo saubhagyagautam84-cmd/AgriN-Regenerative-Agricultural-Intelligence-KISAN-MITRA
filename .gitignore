@@ -1,0 +1,38 @@
+# Python
+.venv/
+**/.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# CNN training data + isolated venv - these paths are directory JUNCTIONS
+# to C:\Users\<you>\dev\kisan-sathi-training\ (outside OneDrive sync, see
+# README > CNN training setup). Never let git try to traverse a junction -
+# it would attempt to add the full dataset/venv as if they were local files.
+backend/cnn_training/.venv/
+backend/cnn_training/PlantVillage-Dataset/
+backend/cnn_training/subset_small/
+# Trained model artifacts ARE tracked, but via Git LFS (see .gitattributes),
+# never committed raw - do not add *.h5/*.tflite here or LFS can't filter them.
+
+# Playwright
+frontend/test-results/
+visual_checks/
+
+# Env
+.env
+.env.local
+.env*.local
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
