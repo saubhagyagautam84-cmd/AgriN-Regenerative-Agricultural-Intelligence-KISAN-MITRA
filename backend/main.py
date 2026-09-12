@@ -34,7 +34,7 @@ from pathlib import Path
 # (from the repo root) to resolve the `models` / `services` packages.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from fastapi import FastAPI, File, Request, UploadFile  # noqa: E402
+from fastapi import FastAPI, File, Form, Request, UploadFile  # noqa: E402
 from fastapi.exceptions import RequestValidationError  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
@@ -228,21 +228,26 @@ def analyze(farm_input: FarmInput) -> AnalyzeResponse:
     tags=["regen"],
     summary="STEP 4 - CNN crop photo health check (multipart upload)",
 )
-async def crop_health_check(photo: UploadFile = File(...)) -> CropHealthCheckResponse:
+async def crop_health_check(
+    photo: UploadFile = File(...),
+    crop_name: str = Form(...),
+) -> CropHealthCheckResponse:
     """
     Runs the trained MobileNetV2 model (see backend/cnn_training/) via a
     subprocess bridge (services/regen/cnn_health.py) - only recognises
     Corn (maize), Potato and Soybean, the 3 of Kisan Sathi's 18 crops that
-    exist in the PlantVillage training data. Any other crop, or if the
-    model files aren't present, falls back to a baseline placeholder
-    result rather than a wrong prediction - never blocks the form.
+    exist in the PlantVillage training data. `crop_name` is required so an
+    unsupported crop's photo is honestly reported (`label:
+    "unsupported_crop"`) instead of silently returning a wrong prediction.
+    If the model files aren't present, falls back to the same baseline
+    placeholder - never blocks the form either way.
 
     The frontend calls this first (only if a photo was taken) and carries
     the resulting `health_score` into FarmInput.crop_health_score before
     submitting the rest of the form to /api/regenerate.
     """
     image_bytes = await photo.read()
-    result = predict_crop_health(image_bytes)
+    result = predict_crop_health(image_bytes, crop_name)
     return CropHealthCheckResponse(
         health_score=result.score,
         label=result.label,

@@ -39,6 +39,11 @@ LABELS_FILE = CNN_TRAINING_DIR / "labels.json"
 
 SUBPROCESS_TIMEOUT_SECONDS = 30
 
+# The only 3 of Kisan Sathi's 18 crops that exist in PlantVillage - see the
+# module docstring. Matched as a case-insensitive substring against the
+# farmer's crop_name (handles "Maize" and "Corn", "Soybean" and "Soya", etc).
+SUPPORTED_CROP_KEYWORDS = ("corn", "maize", "potato", "soybean", "soya")
+
 
 @dataclass
 class CropHealthResult:
@@ -48,15 +53,35 @@ class CropHealthResult:
     note: str
 
 
-def _baseline_placeholder(note: str) -> CropHealthResult:
-    return CropHealthResult(score=1.0, label="unscored", is_placeholder=True, note=note)
+def is_supported_crop(crop_name: str) -> bool:
+    normalized = crop_name.lower()
+    return any(keyword in normalized for keyword in SUPPORTED_CROP_KEYWORDS)
+
+
+def _baseline_placeholder(note: str, label: str = "unscored") -> CropHealthResult:
+    return CropHealthResult(score=1.0, label=label, is_placeholder=True, note=note)
 
 
 def _model_is_ready() -> bool:
     return TRAINING_VENV_PYTHON.exists() and PREDICT_SCRIPT.exists() and MODEL_FILE.exists() and LABELS_FILE.exists()
 
 
-def predict_crop_health(image_bytes: bytes) -> CropHealthResult:
+def predict_crop_health(image_bytes: bytes, crop_name: str) -> CropHealthResult:
+    """
+    `crop_name` is required (not optional) on purpose: silently running the
+    CNN on a crop it was never trained on would return a confident-sounding
+    but meaningless classification (e.g. labelling a Wheat photo as
+    "Potato___Late_blight"). Checking first and returning an honest
+    "unsupported_crop" placeholder is the whole fix for that failure mode.
+    """
+    if not is_supported_crop(crop_name):
+        return _baseline_placeholder(
+            f"'{crop_name}' isn't one of the crops this photo check currently supports "
+            "(Corn/Maize, Potato, Soybean only) - baseline health (1.0) was assumed rather "
+            "than guessing. See FUTURE_WORK.md for expanding crop coverage.",
+            label="unsupported_crop",
+        )
+
     if not _model_is_ready():
         return _baseline_placeholder(
             "No trained health-check model is deployed yet. The photo was "

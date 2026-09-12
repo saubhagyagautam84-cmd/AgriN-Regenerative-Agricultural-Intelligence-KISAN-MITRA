@@ -53,14 +53,21 @@ def post_json(path: str, payload: dict) -> tuple[int, dict]:
         return exc.code, json.loads(exc.read())
 
 
-def post_multipart_photo(path: str, image_path: Path) -> tuple[int, dict]:
+def post_multipart_photo(path: str, image_path: Path, crop_name: str) -> tuple[int, dict]:
     boundary = "----smoke-test-boundary"
     image_bytes = image_path.read_bytes()
     body = (
-        f"--{boundary}\r\n"
-        f'Content-Disposition: form-data; name="photo"; filename="{image_path.name}"\r\n'
-        f"Content-Type: image/jpeg\r\n\r\n"
-    ).encode("utf-8") + image_bytes + f"\r\n--{boundary}--\r\n".encode("utf-8")
+        (
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="crop_name"\r\n\r\n'
+            f"{crop_name}\r\n"
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="photo"; filename="{image_path.name}"\r\n'
+            f"Content-Type: image/jpeg\r\n\r\n"
+        ).encode("utf-8")
+        + image_bytes
+        + f"\r\n--{boundary}--\r\n".encode("utf-8")
+    )
     request = urllib.request.Request(
         f"{BASE_URL}{path}",
         data=body,
@@ -74,11 +81,14 @@ def post_multipart_photo(path: str, image_path: Path) -> tuple[int, dict]:
         return exc.code, json.loads(exc.read())
 
 
-def find_sample_photo() -> Path | None:
-    candidates = list((Path(__file__).resolve().parent / "cnn_training" / "subset_small").glob("*/*.jpg")) + list(
-        (Path(__file__).resolve().parent / "cnn_training" / "subset_small").glob("*/*.JPG")
-    )
-    return candidates[0] if candidates else None
+def find_sample_photo(class_prefix: str = "Potato") -> Path | None:
+    subset_dir = Path(__file__).resolve().parent / "cnn_training" / "subset_small"
+    candidates = sorted(subset_dir.glob(f"{class_prefix}*/*.jpg")) + sorted(subset_dir.glob(f"{class_prefix}*/*.JPG"))
+    if candidates:
+        return candidates[0]
+    # Fall back to any class if the requested one isn't present.
+    any_candidates = sorted(subset_dir.glob("*/*.jpg")) + sorted(subset_dir.glob("*/*.JPG"))
+    return any_candidates[0] if any_candidates else None
 
 
 def main() -> int:
@@ -258,17 +268,25 @@ def main() -> int:
     print(f"   [OK] missing-photo fallback correctly tagged crop_health as 'estimated'")
 
     line("8. PART B - /api/crop-health-check")
-    sample_photo = find_sample_photo()
+    sample_photo = find_sample_photo("Potato")
     if sample_photo is None:
         print("   SKIPPED - no sample photo found under backend/cnn_training/subset_small/")
         print("   (expected on a fresh clone before training data is fetched - see README)")
     else:
-        status, payload = post_multipart_photo("/api/crop-health-check", sample_photo)
+        status, payload = post_multipart_photo("/api/crop-health-check", sample_photo, "Potato")
         assert status == 200, f"crop-health-check: expected HTTP 200, got {status} - {payload}"
         for key in ("health_score", "label", "is_placeholder", "note"):
             assert key in payload, f"crop-health-check: missing key {key!r} in {payload}"
         assert 0.0 <= payload["health_score"] <= 1.0, f"health_score out of range: {payload['health_score']}"
-        print(f"   [OK] {sample_photo.name} -> health_score={payload['health_score']} is_placeholder={payload['is_placeholder']}")
+        print(f"   [OK] supported crop (Potato, {sample_photo.name}) -> health_score={payload['health_score']} is_placeholder={payload['is_placeholder']}")
+
+        # Unsupported-crop fallback: same photo, but claimed as a crop the
+        # CNN was never trained on - must NOT return a confident guess.
+        status, payload = post_multipart_photo("/api/crop-health-check", sample_photo, "Wheat")
+        assert status == 200, f"crop-health-check (unsupported crop): expected HTTP 200, got {status} - {payload}"
+        assert payload["is_placeholder"] is True, "unsupported crop should return is_placeholder=True, not a guessed classification"
+        assert payload["label"] == "unsupported_crop", f"expected label='unsupported_crop', got {payload['label']!r}"
+        print(f"   [OK] unsupported crop (Wheat) correctly returned label='unsupported_crop', is_placeholder=True")
 
     print("\nAll checks passed (Part A + Part B).\n")
     return 0

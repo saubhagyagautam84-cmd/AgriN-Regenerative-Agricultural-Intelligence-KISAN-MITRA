@@ -248,17 +248,26 @@ export default function FarmInputForm({ onSubmit, loading, serverFieldErrors }: 
   }
 
   // STEP 4 - crop photo health check (Part B). Never blocks the form: a
-  // failed or skipped upload just leaves crop_health_score null, and the
-  // backend assumes a baseline health of 1.0 for it.
+  // failed, skipped, or unsupported-crop upload just leaves
+  // crop_health_score null, and the backend assumes a baseline health of
+  // 1.0 for it.
   async function handlePhotoSelected(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    const cropName =
+      state.crop_choice === OTHER_CROP ? state.crop_other.trim() : state.crop_choice.trim();
+    if (!cropName) {
+      setPhotoNote("Choose your crop above first, so the photo check knows what to look for.");
+      setPhotoStatus("done");
+      return;
+    }
+
     setPhotoStatus("uploading");
-    const result = await checkCropHealth(file);
+    const result = await checkCropHealth(file, cropName);
     setState((previous) => ({ ...previous, crop_health_score: result.health_score }));
     setPhotoNote(result.note);
-    setPhotoStatus(result.is_placeholder ? "done" : "done");
+    setPhotoStatus("done");
   }
 
   function handleSubmit(event: React.FormEvent) {
@@ -519,6 +528,11 @@ export default function FarmInputForm({ onSubmit, loading, serverFieldErrors }: 
         label="Photo of your crop (optional)"
         hint="फसल की फोटो — ज़रूरी नहीं, इससे सलाह बेहतर होगी"
       >
+        <p className="mb-2 text-sm text-soil-700">
+          Disease check currently works for Corn, Potato and Soybean only — other crops still
+          get a photo-free advice baseline.
+          <span className="block">अभी यह जाँच सिर्फ मक्का, आलू और सोयाबीन के लिए काम करती है।</span>
+        </p>
         <input
           type="file"
           data-testid="input-crop-photo"

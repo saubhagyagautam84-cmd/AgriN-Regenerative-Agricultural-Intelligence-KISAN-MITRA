@@ -178,12 +178,17 @@ export async function runRegenAnalysis(input: FarmInput): Promise<RegenAnalyzeRe
  * runRegenAnalysis if the farmer took a photo, and put the resulting
  * `health_score` into FarmInput.crop_health_score.
  *
+ * `cropName` is required - the backend only recognises Corn/Maize, Potato
+ * and Soybean (PlantVillage's coverage) and honestly reports
+ * `label: "unsupported_crop"` for anything else rather than guessing.
+ *
  * Never throws - a placeholder/baseline result comes back even if the
  * backend's model isn't trained yet (see backend/services/regen/cnn_health.py).
  */
-export async function checkCropHealth(photo: File): Promise<CropHealthCheckResponse> {
+export async function checkCropHealth(photo: File, cropName: string): Promise<CropHealthCheckResponse> {
   const formData = new FormData();
   formData.append("photo", photo);
+  formData.append("crop_name", cropName);
 
   try {
     const response = await fetch(`${API_BASE}/api/crop-health-check`, {

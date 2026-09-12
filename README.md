@@ -246,6 +246,7 @@ agri-monitor/
 │   └── generate_readme.py
 ├── .gitattributes
 ├── .gitignore
+├── FUTURE_WORK.md
 ├── README.md
 └── verify.sh
 ```
