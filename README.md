@@ -351,11 +351,21 @@ a real headless browser, `npm audit`), not inferred from static checks — see
 
 ## Known limitations (be honest in the demo)
 
-- **Weather is synthetic.** `services/weather.py` generates numbers from a
-  month-of-year climatology, seeded by PIN code so a given farm looks the same
-  all day. No network call is made. Swap for Open-Meteo (free, no API key).
-- **15 PIN codes only.** Anything else falls back to "location not resolved"
-  and the advice goes generic — deliberately visible in the UI.
+- **Weather is live** (`services/weather.py` calls Open-Meteo - free, no API
+  key, real ET0/rainfall/forecast). It needs resolved coordinates though: an
+  unresolved PIN with no GPS still can't get weather, same as before -
+  the module degrades to a data gap rather than crashing.
+- **Soil Health Card data is still a hand-compiled placeholder**
+  (`data/soil_health_card.csv`, 20 rows, 5 states) - real data.gov.in
+  district-wise Soil Health Card data isn't published as a clean queryable
+  API/dataset, so this was accepted as a documented limitation rather than
+  attempting a fragile scrape. Verify against the real SHC portal before
+  any production use.
+- **15 PIN codes only** for location resolution (`data/pincode_lookup.csv`).
+  Anything else falls back to "location not resolved" and the advice goes
+  generic — deliberately visible in the UI. (Weather itself now works for
+  ANY coordinates via GPS even if the PIN isn't in this table - only the
+  district/state/soil-lookup side is limited to these 15.)
 - **Part A's 4 modules are rule-based** (published rating bands + simple
   water balance). **Part B's M3 (fertiliser) and M5 (irrigation) are real
   trained/fitted models** (RandomForestRegressor, LinearRegression) but on

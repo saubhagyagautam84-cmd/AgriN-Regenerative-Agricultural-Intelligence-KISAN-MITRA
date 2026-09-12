@@ -104,6 +104,20 @@ farmer and less accurate than a lookup. Part B's soil-test fields are the one
 exception: if the farmer already has the numbers, using them beats a district
 average, so they're offered as optional overrides, never required.
 
+**Why `sowing_date` and `irrigation_source` have no "missing" fallback.**
+The original Feature Resolver design called for a fallback on every
+auto-derivable field, including estimating a missing sowing date from the
+crop's typical sowing window and defaulting a missing water source to a
+regional rainfall assumption. Neither branch exists in the code, and that's
+deliberate, not an oversight: both fields are **required** (sowing_date) or
+**default-valued** (irrigation_source defaults to `rainfed`) in the form
+contract itself, per Part A's "ask the minimum, four things" design - so
+there is never a "missing" case for the Feature Resolver to catch. Building
+dead fallback code that can structurally never execute would be worse than
+not building it. If a genuinely optional entry mode is ever added for
+either field, the fallback logic described in the original spec is exactly
+what should be built then.
+
 ---
 
 ## 2. Auto-fetched (the system derives these)
@@ -114,7 +128,7 @@ average, so they're offered as optional overrides, never required.
 | `location.latitude` / `.longitude` | number | `data/pincode_lookup.csv` | `pincode` | GPS value if the farmer shared it, else `null` |
 | `soil.*` (N, P, K, pH, EC, OC, S, Zn, Fe, Cu, Mn, B) | number | `data/soil_health_card.csv` | `pincode` → district → state | Degrades exact → district avg → state avg → `null`; `match_level` records which, and modules downgrade to `status: "partial"` |
 | `soil.soil_type`, `.test_date`, `.sample_id` | string | `data/soil_health_card.csv` | same | `null` |
-| `weather.*` (temp, humidity, rainfall 7d/30d, forecast, ET0) | number | `services/weather.py` **(synthetic stub)** | `location` lat/lon + PIN code | Module returns `status: "error"`; the rest of the dashboard still renders |
+| `weather.*` (temp, humidity, rainfall 7d/30d, forecast, ET0) | number | `services/weather.py` **(live - Open-Meteo)** | `location` lat/lon (PIN lookup or GPS) | No coordinates, or the API call fails/times out -> module returns `status: "error"`; the rest of the dashboard still renders |
 | `crop_reference.*` (NPK requirement, water mm, ideal pH, rotation + cover-crop lists, duration, critical stages) | mixed | `data/crop_reference.json` | `crop_name` + aliases + Hindi names + fuzzy | `null`; advice becomes generic and `status: "partial"` |
 | `land_size_hectare` | number | computed | `land_size` × `land_unit` | — |
 | `days_since_sowing` | int | computed | `today − sowing_date` (negative if not yet sown) | — |

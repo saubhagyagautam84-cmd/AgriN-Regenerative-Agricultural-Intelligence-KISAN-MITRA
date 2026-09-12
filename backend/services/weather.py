@@ -1,46 +1,48 @@
 """
 Weather + rainfall for a farm location.
 
-STATUS: SYNTHETIC STUB. No network call is made. Numbers come from a coarse
-month-of-year climatology for the Indian subcontinent, jittered by a seed
-derived from (pincode, today) so that the same farm shows the same weather
-all day - demos stay reproducible instead of flickering on every refresh.
+STATUS: LIVE. Calls Open-Meteo (https://open-meteo.com) - free, no API key,
+one request returns 30 days of history + today + 7-day forecast in a
+single call (`past_days=30&forecast_days=7`), including FAO-56 reference
+evapotranspiration (et0_fao_evapotranspiration) directly - no separate
+Penman-Monteith calc needed. This was the exact provider the original
+synthetic-stub docstring named as the intended swap-in; the WeatherData
+return shape is unchanged, so nothing downstream (M3, M5, M2's trend) had
+to change.
 
-TODO(integration): swap `get_weather()` for a real provider. Keep the
-signature and the WeatherData return type and nothing downstream changes.
-    * Open-Meteo   - free, no API key, has ET0 + 7-day forecast
-    * IMD AgroMet  - official district-level agro advisories
-    * NASA POWER   - long historical series, good for model training
+Graceful degradation, unchanged from the stub it replaced: if coordinates
+are unresolved (no PIN match, no GPS) or the API call fails/times out,
+this raises - aggregator.py already catches that and records "weather" as
+a data_gap rather than crashing the whole request. A short in-process
+cache (by rounded lat/lon) avoids hammering the API for repeat requests
+against the same farm within a demo session.
 """
 
 from __future__ import annotations
 
-import random
-from datetime import date, timedelta
-from typing import Optional
+import json
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from datetime import date
+from typing import Any, Optional
 
 from models.schemas import LocationInfo, WeatherData, WeatherDay
 
-# Very coarse all-India monthly climatology. Good enough to make the
-# irrigation module behave sensibly across seasons; not good enough to
-# advise a real farmer with. Hence the TODO above.
-MONTHLY_RAIN_MM: dict[int, float] = {
-    1: 15, 2: 14, 3: 12, 4: 10, 5: 28, 6: 150,
-    7: 290, 8: 265, 9: 170, 10: 62, 11: 18, 12: 8,
-}
-MONTHLY_TMAX_C: dict[int, float] = {
-    1: 23, 2: 26, 3: 32, 4: 37, 5: 40, 6: 36,
-    7: 32, 8: 31, 9: 32, 10: 32, 11: 28, 12: 24,
-}
-MONTHLY_HUMIDITY_PCT: dict[int, float] = {
-    1: 55, 2: 48, 3: 40, 4: 35, 5: 42, 6: 68,
-    7: 82, 8: 84, 9: 76, 10: 62, 11: 56, 12: 58,
-}
+OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
+REQUEST_TIMEOUT_SECONDS = 8
+CACHE_TTL_SECONDS = 3600  # 1 hour - weather doesn't need per-second freshness for advisory purposes
 
+PAST_DAYS = 30
+# Open-Meteo's forecast_days INCLUDES today (forecast_days=7 -> today + 6
+# more days). Requesting 8 gives today + 7 full days strictly after today,
+# matching the original stub's semantic (forecast = the next 7 days, not
+# including today, which is reported separately as the "current" fields).
+FORECAST_DAYS_REQUEST = 8
+FORECAST_DAYS = 7
 
-def _seeded_rng(pincode: str, today: date) -> random.Random:
-    """Same farm + same day -> same weather. Demos should not flicker."""
-    return random.Random(f"{pincode}|{today.isoformat()}")
+_CACHE: dict[tuple[float, float], tuple[float, WeatherData]] = {}
 
 
 def _condition(rain_mm: float) -> str:
@@ -55,71 +57,106 @@ def _condition(rain_mm: float) -> str:
     return "Clear"
 
 
-def _et0_for(month: int, temp_max_c: float, humidity_pct: float) -> float:
-    """
-    Crude reference-evapotranspiration proxy (mm/day).
+def _fetch_open_meteo(lat: float, lon: float) -> dict[str, Any]:
+    params = {
+        "latitude": round(lat, 3),
+        "longitude": round(lon, 3),
+        "daily": (
+            "temperature_2m_max,temperature_2m_min,relative_humidity_2m_mean,"
+            "precipitation_sum,et0_fao_evapotranspiration"
+        ),
+        "timezone": "Asia/Kolkata",
+        "past_days": PAST_DAYS,
+        "forecast_days": FORECAST_DAYS_REQUEST,
+    }
+    url = f"{OPEN_METEO_URL}?{urllib.parse.urlencode(params)}"
+    request = urllib.request.Request(url, headers={"User-Agent": "kisan-sathi/1.0"})
+    with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+        return json.loads(response.read())
 
-    TODO(agronomy): replace with proper FAO-56 Penman-Monteith once we have
-    real radiation and wind data from the weather provider.
-    """
-    et0 = 0.16 * temp_max_c - 0.03 * humidity_pct + 1.4
-    if month in (6, 7, 8, 9):  # monsoon cloud cover suppresses demand
-        et0 -= 0.6
-    return round(max(1.5, min(9.0, et0)), 2)
+
+def _safe_sum(values: list[Optional[float]]) -> float:
+    return round(sum(v for v in values if v is not None), 1)
 
 
 def get_weather(
     location: LocationInfo,
     on_date: Optional[date] = None,
 ) -> WeatherData:
-    """Current + 7-day-forecast weather for the farm's location."""
+    """Live current + 7-day-forecast weather for the farm's location, via Open-Meteo."""
     today = on_date or date.today()
-    rng = _seeded_rng(location.pincode, today)
-    month = today.month
 
-    base_rain = MONTHLY_RAIN_MM[month]
-    base_tmax = MONTHLY_TMAX_C[month]
-    base_humidity = MONTHLY_HUMIDITY_PCT[month]
+    if location.latitude is None or location.longitude is None:
+        raise ValueError("No coordinates resolved for this location - cannot fetch live weather.")
 
-    # A dry district and a wet one in the same month should not look identical.
-    regional_factor = 0.6 + rng.random() * 0.8
+    cache_key = (round(location.latitude, 2), round(location.longitude, 2))
+    cached = _CACHE.get(cache_key)
+    if cached is not None and (time.time() - cached[0]) < CACHE_TTL_SECONDS:
+        return cached[1]
 
-    temp_max_c = round(base_tmax + rng.uniform(-3.0, 3.0), 1)
-    temp_min_c = round(temp_max_c - rng.uniform(9.0, 14.0), 1)
-    humidity_pct = round(min(98.0, max(15.0, base_humidity + rng.uniform(-8.0, 8.0))), 1)
+    try:
+        raw = _fetch_open_meteo(location.latitude, location.longitude)
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError) as exc:
+        raise RuntimeError(f"Open-Meteo request failed: {type(exc).__name__}: {exc}") from exc
 
-    rainfall_last_7d = round(max(0.0, base_rain / 30 * 7 * regional_factor * rng.uniform(0.4, 1.6)), 1)
-    rainfall_last_30d = round(max(0.0, base_rain * regional_factor * rng.uniform(0.7, 1.3)), 1)
+    daily = raw.get("daily")
+    if not daily or "time" not in daily:
+        raise RuntimeError(f"Open-Meteo returned an unexpected shape: {raw}")
+
+    dates: list[str] = daily["time"]
+    today_str = today.isoformat()
+    # Open-Meteo returns exactly PAST_DAYS + 1 (today) + FORECAST_DAYS entries,
+    # with "today" at a fixed offset from the end - used as a fallback if the
+    # exact date string isn't found (e.g. a synthetic `on_date` in a test).
+    today_idx = dates.index(today_str) if today_str in dates else max(0, len(dates) - FORECAST_DAYS_REQUEST)
+
+    precip = daily["precipitation_sum"]
+    tmax = daily["temperature_2m_max"]
+    tmin = daily["temperature_2m_min"]
+    humidity = daily["relative_humidity_2m_mean"]
+    et0 = daily["et0_fao_evapotranspiration"]
+
+    rainfall_last_7d = _safe_sum(precip[max(0, today_idx - 7) : today_idx])
+    rainfall_last_30d = _safe_sum(precip[max(0, today_idx - 30) : today_idx])
+
+    forecast_indices = list(range(today_idx + 1, min(len(dates), today_idx + 1 + FORECAST_DAYS)))
+    rainfall_forecast_7d = _safe_sum([precip[i] for i in forecast_indices])
 
     forecast: list[WeatherDay] = []
-    forecast_total = 0.0
-    for offset in range(1, 8):
-        day = today + timedelta(days=offset)
-        # Rain is bursty: most days dry, occasional heavy day.
-        rains = rng.random() < min(0.75, base_rain / 300 + 0.06)
-        rain_mm = round(rng.uniform(1.0, base_rain / 6 + 4) * regional_factor, 1) if rains else 0.0
-        forecast_total += rain_mm
-        day_tmax = round(temp_max_c + rng.uniform(-2.5, 2.5) - (2.5 if rain_mm > 10 else 0), 1)
+    for i in forecast_indices:
+        rain_mm = round(precip[i] or 0.0, 1)
         forecast.append(
             WeatherDay(
-                date=day.isoformat(),
+                date=dates[i],
                 rain_mm=rain_mm,
-                temp_max_c=day_tmax,
-                temp_min_c=round(day_tmax - rng.uniform(9.0, 13.0), 1),
+                temp_max_c=round(tmax[i], 1) if tmax[i] is not None else 0.0,
+                temp_min_c=round(tmin[i], 1) if tmin[i] is not None else 0.0,
                 condition=_condition(rain_mm),
             )
         )
 
-    return WeatherData(
-        source="synthetic-stub (climatology + seeded jitter)",
+    today_et0 = et0[today_idx] if today_idx < len(et0) and et0[today_idx] is not None else 4.0
+    today_tmax = tmax[today_idx] if tmax[today_idx] is not None else 30.0
+    today_tmin = tmin[today_idx] if tmin[today_idx] is not None else 20.0
+    today_humidity = humidity[today_idx] if humidity[today_idx] is not None else 55.0
+
+    result = WeatherData(
+        source="Open-Meteo (live)",
         latitude=location.latitude,
         longitude=location.longitude,
-        temp_max_c=temp_max_c,
-        temp_min_c=temp_min_c,
-        humidity_pct=humidity_pct,
+        temp_max_c=round(today_tmax, 1),
+        temp_min_c=round(today_tmin, 1),
+        humidity_pct=round(today_humidity, 1),
         rainfall_last_7d_mm=rainfall_last_7d,
         rainfall_last_30d_mm=rainfall_last_30d,
-        rainfall_forecast_7d_mm=round(forecast_total, 1),
-        et0_mm_per_day=_et0_for(month, temp_max_c, humidity_pct),
+        rainfall_forecast_7d_mm=rainfall_forecast_7d,
+        et0_mm_per_day=round(today_et0, 2),
         forecast=forecast,
     )
+    _CACHE[cache_key] = (time.time(), result)
+    return result
+
+
+def clear_cache() -> None:
+    """Force the next call to re-fetch from Open-Meteo. Handy in tests."""
+    _CACHE.clear()

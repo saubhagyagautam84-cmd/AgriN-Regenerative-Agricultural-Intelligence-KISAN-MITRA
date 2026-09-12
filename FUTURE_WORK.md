@@ -50,13 +50,28 @@ crop's specific ICAR institute handbook (already cited per-crop in
 
 ---
 
-## Weather is still a synthetic stub
+## ~~Weather is still a synthetic stub~~ - RESOLVED
 
-**Current state**: `backend/services/weather.py` generates plausible
-numbers from a month-of-year climatology, not real forecasts. M5
-(irrigation) and M2 (soil carbon trend) both consume this.
+`backend/services/weather.py` now calls Open-Meteo live (real ET0/rainfall/
+forecast, no API key). Kept here struck through rather than deleted so the
+resolution is traceable in this file's history.
 
-**Why it's not fixed here**: explicitly deferred by request when Part B was
-built - see the weather integration note in that module's docstring. Open-
-Meteo (free, no API key) is the suggested swap-in; the return shape is
-already designed for it.
+---
+
+## Soil Health Card data is a hand-compiled placeholder, not real data.gov.in data
+
+**Current state**: `backend/data/soil_health_card.csv` (20 rows, 5 states)
+is manually authored, not sourced from data.gov.in.
+
+**Why it's not fixed here**: data.gov.in's district-wise Soil Health Card
+datasets aren't published as a single clean, consistently-formatted,
+queryable dataset/API across states - coverage and column format vary by
+state release. Attempting to wire this in reliably was judged higher
+effort/lower certainty than the payoff for this stage; accepted as a
+documented limitation instead of a fragile scrape.
+
+**Recommended next step**: identify 2-3 states with a clean CSV export on
+data.gov.in's Soil Health Card portal, hand-verify the column mapping
+against `services/data_loader.py`'s `SOIL_TEXT_COLUMNS`/`SOIL_NUMERIC_COLUMNS`,
+and replace the placeholder rows for just those states first rather than
+attempting full national coverage in one pass.

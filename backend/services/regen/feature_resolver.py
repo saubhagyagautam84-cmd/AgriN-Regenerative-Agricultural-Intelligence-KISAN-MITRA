@@ -160,7 +160,15 @@ def build_enriched_feature_vector(
         "location": "observed" if aggregated.location.resolved else "estimated",
         "weather": "observed" if aggregated.weather is not None else "estimated",
         "crop_reference": "observed" if aggregated.crop_reference is not None else "estimated",
-        "sowing_date": "observed",  # FarmInput requires it; never falls back
+        # sowing_date and irrigation_source (water_source) have no
+        # "missing -> estimate" fallback path, unlike everything else here -
+        # deliberately, not an oversight. sowing_date is a required field and
+        # irrigation_source defaults to "rainfed" in the form contract
+        # itself (see models/schemas.py::FarmInput), so there is never a
+        # "missing" case for this resolver to catch. See
+        # scripts/generate_field_spec.py's note on this for the full reasoning.
+        "sowing_date": "observed",
+        "irrigation_source": "observed",
     }
 
     return EnrichedFeatureVector(

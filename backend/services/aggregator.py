@@ -113,7 +113,9 @@ def aggregate_farm_data(farm_input: FarmInput, today: Optional[date] = None) -> 
         )
 
     # --- 3. weather -------------------------------------------------------
-    # TODO(integration): real provider. See services/weather.py.
+    # Live (Open-Meteo) - see services/weather.py. Still wrapped defensively:
+    # unresolved coordinates or a network/API failure must never break the
+    # rest of the farm request, only degrade this one source.
     try:
         weather = weather_service.get_weather(location, on_date=today)
     except Exception as exc:  # noqa: BLE001 - weather must never break aggregation
