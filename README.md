@@ -57,6 +57,34 @@ Open <http://localhost:3000> and press **▶ Load demo farm**, or fill the form
 > confirm with `node --version`. The frontend has therefore **not been run
 > yet** — see [Status](#status) below.
 
+### Terminal 3 — CNN crop-health check (optional, Part B)
+
+The trained model files (`crop_health_model.h5`/`.tflite`) travel with the
+repo via **Git LFS** - `git lfs pull` after cloning fetches them like any
+other file. What does **not** travel with the repo: the isolated Python
+3.11 + TensorFlow venv that runs them, and the PlantVillage training data -
+both are gitignored and live outside OneDrive/cloud-sync at
+`~/dev/kisan-sathi-training/` (junctioned back into `backend/cnn_training/`
+so the code's relative paths work unchanged - see `backend/cnn_training/`'s
+`.venv`, `PlantVillage-Dataset/`, `subset_small/`).
+
+```powershell
+# first time only - recreates the inference venv (TensorFlow has no wheel
+# for very new Python versions yet, hence the separate 3.11 install)
+winget install Python.Python.3.11
+cd agri-monitor\backend\cnn_training
+py -3.11 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install tensorflow==2.15.0 numpy
+
+# sanity check - should print a real prediction, not a placeholder
+.\.venv\Scripts\python.exe predict.py <path-to-any-crop-photo.jpg>
+```
+
+Without this venv, `/api/crop-health-check` still works - it gracefully
+falls back to the baseline placeholder (`is_placeholder: true`) rather than
+failing. To retrain from scratch (not needed just to run inference), see
+`backend/cnn_training/train_lowmem.py` and `subsample.py`.
+
 ### No frontend? Test the backend on its own
 
 ```powershell
