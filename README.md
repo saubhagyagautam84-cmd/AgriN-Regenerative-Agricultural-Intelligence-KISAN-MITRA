@@ -210,6 +210,7 @@ agri-monitor/
 │   │   ├── adapters.py
 │   │   ├── confidence.py
 │   │   ├── dynamic_weights.py
+│   │   ├── history_tracker.py
 │   │   ├── normalizer.py
 │   │   ├── score_engine.py
 │   │   └── test_edge_cases.py

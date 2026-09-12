@@ -21,6 +21,7 @@ from typing import Any, Callable
 from models.schemas import AggregatedData, FarmInput, ModuleResponse, RegenAnalyzeResponse, RegenerationScore
 from regeneration_score.adapters import adapt_all_modules
 from regeneration_score.dynamic_weights import get_dynamic_weights
+from regeneration_score.history_tracker import generate_farm_id, simulate_history
 from regeneration_score.score_engine import compute_regeneration_score
 from services.regen import m1_rotation, m2_soil_carbon, m3_fertilizer, m4_cover_cropping, m5_irrigation
 from services.regen.feature_resolver import build_enriched_feature_vector
@@ -83,6 +84,15 @@ def run_regen_pipeline(farm_input: FarmInput, aggregated: AggregatedData) -> Reg
         has_soil_test=farm_input.soil_test_available,
     )
     score_result = compute_regeneration_score(adapted_or_none, weights=weights)
+
+    # --- Step 7: simulated history (only meaningful alongside a real score) -
+    history = None
+    if score_result["regeneration_score"] is not None:
+        farm_id = generate_farm_id(farm_input.pincode, farm_input.crop_name)
+        history = simulate_history(
+            farm_id, score_result["regeneration_score"], m2_response.details.get("projection") or {}
+        )
+
     regen_score = RegenerationScore(
         score=score_result["regeneration_score"],
         confidence=score_result["confidence_level"],
@@ -91,6 +101,7 @@ def run_regen_pipeline(farm_input: FarmInput, aggregated: AggregatedData) -> Reg
         weakest_module=score_result.get("weakest_module"),
         improvement_tip=score_result.get("improvement_tip"),
         message=score_result.get("message"),
+        history=history,
     )
 
     return RegenAnalyzeResponse(
