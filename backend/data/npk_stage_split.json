@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0",
+  "source": "Category-level split percentages follow standard ICAR/state agricultural university package-of-practice guidance on basal vs. topdress fertiliser application (e.g. cereals: basal + 2 N topdressings at tillering/CRI and jointing/panicle-initiation, full P and often K basal; legumes: fully basal since the crop fixes its own N once nodulation starts; long-duration cash crops: N split across 3 stages, K split basal + reproductive). This is standard taught practice, not a bespoke per-crop field-trial result - verify against your crop's specific ICAR handbook before real deployment.",
+  "note": "Each nutrient's percentages across the 5 stage buckets sum to 100. Buckets match AggregatedData.crop_stage_hint.",
+  "categories": {
+    "cereal": {
+      "description": "Wheat, Rice, Maize, Pearl Millet, Sorghum, Barley - basal + 2 N topdressings, P mostly basal, K split basal/reproductive.",
+      "n_pct": { "establishment": 40, "vegetative": 30, "flowering": 30, "grain_filling": 0, "maturity": 0 },
+      "p_pct": { "establishment": 100, "vegetative": 0, "flowering": 0, "grain_filling": 0, "maturity": 0 },
+      "k_pct": { "establishment": 60, "vegetative": 0, "flowering": 40, "grain_filling": 0, "maturity": 0 }
+    },
+    "legume": {
+      "description": "Soybean, Chickpea, Groundnut, Lentil, Pigeon Pea, Green Gram, Black Gram - starter dose, fully basal; the crop fixes its own N from nodulation onward.",
+      "n_pct": { "establishment": 100, "vegetative": 0, "flowering": 0, "grain_filling": 0, "maturity": 0 },
+      "p_pct": { "establishment": 100, "vegetative": 0, "flowering": 0, "grain_filling": 0, "maturity": 0 },
+      "k_pct": { "establishment": 100, "vegetative": 0, "flowering": 0, "grain_filling": 0, "maturity": 0 }
+    },
+    "long_duration_cash_crop": {
+      "description": "Cotton, Sugarcane - long season, N split across 3 stages, K split basal + reproductive for boll/cane development.",
+      "n_pct": { "establishment": 34, "vegetative": 33, "flowering": 33, "grain_filling": 0, "maturity": 0 },
+      "p_pct": { "establishment": 100, "vegetative": 0, "flowering": 0, "grain_filling": 0, "maturity": 0 },
+      "k_pct": { "establishment": 50, "vegetative": 0, "flowering": 50, "grain_filling": 0, "maturity": 0 }
+    },
+    "oilseed_root": {
+      "description": "Mustard, Sunflower, Potato - two-way N split (basal + one topdressing/earthing-up), P and K basal.",
+      "n_pct": { "establishment": 50, "vegetative": 50, "flowering": 0, "grain_filling": 0, "maturity": 0 },
+      "p_pct": { "establishment": 100, "vegetative": 0, "flowering": 0, "grain_filling": 0, "maturity": 0 },
+      "k_pct": { "establishment": 70, "vegetative": 30, "flowering": 0, "grain_filling": 0, "maturity": 0 }
+    }
+  },
+  "crop_category": {
+    "Wheat": "cereal",
+    "Rice": "cereal",
+    "Maize": "cereal",
+    "Pearl Millet": "cereal",
+    "Sorghum": "cereal",
+    "Barley": "cereal",
+    "Soybean": "legume",
+    "Chickpea": "legume",
+    "Groundnut": "legume",
+    "Lentil": "legume",
+    "Pigeon Pea": "legume",
+    "Green Gram": "legume",
+    "Black Gram": "legume",
+    "Cotton": "long_duration_cash_crop",
+    "Sugarcane": "long_duration_cash_crop",
+    "Mustard": "oilseed_root",
+    "Sunflower": "oilseed_root",
+    "Potato": "oilseed_root"
+  }
+}

@@ -9,17 +9,17 @@ Writes: ModuleResponse(module_name="fertilizer") with
 
 MODEL: a real scikit-learn RandomForestRegressor (multi-output: N, P, K in
 one forest), trained ONCE at import time on a SYNTHETIC dataset built from
-crop_reference.json's ICAR-sourced seasonal N/P/K totals. No real
-farm-level observational dataset exists yet (this is the honest limitation
-stated in the project brief), so training labels are generated from a
-physically-grounded rule: each crop's seasonal NPK requirement is split
-across its growth-stage curve (reusing Part A's STAGE_CROP_COEFFICIENT Kc
-curve from services/modules/common.py, applied to nutrient demand as well
-as water demand - a simplifying assumption, not a per-crop published
-stage-split table) and adjusted by the soil test's low/medium/high rating
-(same DOSE_FACTOR reused from services/modules/soil_status.py). This keeps
-the model swap-in-ready: replace `_build_synthetic_training_set()` with a
-loader over real agronomic trial data and nothing downstream changes.
+two real sources: crop_reference.json's ICAR-sourced seasonal N/P/K totals,
+AND data/npk_stage_split.json's explicit per-growth-stage N/P/K split
+percentages (basal vs. topdress, by crop category - see that file's
+`source` field for what it is and isn't). No real farm-level observational
+dataset exists yet (this is the honest limitation stated in the project
+brief), so training labels are the crop's seasonal total multiplied by the
+stage-split percentage for the current growth stage, adjusted by the soil
+test's low/medium/high rating (same DOSE_FACTOR reused from
+services/modules/soil_status.py). This keeps the model swap-in-ready:
+replace `_build_synthetic_training_set()` with a loader over real
+agronomic trial data and nothing downstream changes.
 
 `current_estimated_usage` (the "typical farmer usage" baseline) is modelled
 on the commonly-cited pattern of imbalanced fertiliser use in India - urea
@@ -33,13 +33,15 @@ with local extension data before real deployment.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 
 from models.schemas import ModuleResponse
-from services.modules.common import STAGE_CROP_COEFFICIENT, rate_nutrient
+from services.modules.common import rate_nutrient
 from services.modules.soil_status import DOSE_FACTOR
 from services.regen.feature_resolver import EnrichedFeatureVector
 
@@ -49,7 +51,9 @@ FEATURE_NAMES = [
     "crop_total_N_kg_per_ha",
     "crop_total_P_kg_per_ha",
     "crop_total_K_kg_per_ha",
-    "growth_stage_fraction",
+    "n_stage_split_pct",
+    "p_stage_split_pct",
+    "k_stage_split_pct",
     "soil_N_score",
     "soil_P_score",
     "soil_K_score",
@@ -60,19 +64,31 @@ FEATURE_NAMES = [
 # Same 0-100 scale M2 uses for SHC ratings.
 RATING_SCORE = {"low": 40.0, "medium": 75.0, "high": 100.0}
 
-# Sum of the 5 "in-season" Kc buckets - used to turn a bucket's coefficient
-# into "fraction of the season's total nutrient demand happening now".
 _PRODUCTIVE_STAGES = ["establishment", "vegetative", "flowering", "grain_filling", "maturity"]
-_KC_SUM = sum(STAGE_CROP_COEFFICIENT[s] for s in _PRODUCTIVE_STAGES)
+
+_NPK_STAGE_SPLIT_PATH = Path(__file__).resolve().parents[2] / "data" / "npk_stage_split.json"
+_NPK_STAGE_SPLIT = json.loads(_NPK_STAGE_SPLIT_PATH.read_text(encoding="utf-8"))
+_CATEGORIES = _NPK_STAGE_SPLIT["categories"]
+_CROP_CATEGORY = _NPK_STAGE_SPLIT["crop_category"]
+_DEFAULT_CATEGORY = "cereal"  # fallback for a crop not in the map - keeps the model usable, never crashes
 
 
-def _stage_fraction(stage_hint: str) -> float:
-    if stage_hint in ("not_sown_yet",):
-        return STAGE_CROP_COEFFICIENT["establishment"] / _KC_SUM  # pre-plant/basal dose
-    if stage_hint == "past_harvest":
-        return 0.0
-    kc = STAGE_CROP_COEFFICIENT.get(stage_hint, STAGE_CROP_COEFFICIENT["unknown"])
-    return kc / _KC_SUM
+def _stage_split_pct(crop_name: str, stage_hint: str) -> tuple[float, float, float]:
+    """(n_pct, p_pct, k_pct) of the season's total due at this growth stage, from the real split table."""
+    category_name = _CROP_CATEGORY.get(crop_name, _DEFAULT_CATEGORY)
+    category = _CATEGORIES[category_name]
+
+    bucket = stage_hint
+    if stage_hint == "not_sown_yet":
+        bucket = "establishment"  # pre-plant/basal dose
+    elif stage_hint not in _PRODUCTIVE_STAGES:
+        bucket = "maturity"  # past_harvest/unknown - no further dose due
+
+    return (
+        category["n_pct"].get(bucket, 0.0),
+        category["p_pct"].get(bucket, 0.0),
+        category["k_pct"].get(bucket, 0.0),
+    )
 
 
 # "Typical farmer usage" imbalance multipliers - see module docstring.
@@ -89,7 +105,7 @@ def _build_synthetic_training_set(
     ratings = ["low", "medium", "high"]
     for crop in crops:
         for stage in _PRODUCTIVE_STAGES:
-            stage_frac = STAGE_CROP_COEFFICIENT[stage] / _KC_SUM
+            n_pct, p_pct, k_pct = _stage_split_pct(crop.crop_name, stage)
             for _ in range(samples_per_crop_stage):
                 n_rating = ratings[rng.integers(0, 3)]
                 p_rating = ratings[rng.integers(0, 3)]
@@ -97,9 +113,9 @@ def _build_synthetic_training_set(
                 ph_deviation = float(rng.uniform(0, 2.0))
                 et0 = float(rng.uniform(1.5, 9.0))
 
-                n_target = crop.n_requirement_kg_per_ha * stage_frac * DOSE_FACTOR[n_rating]
-                p_target = crop.p_requirement_kg_per_ha * stage_frac * DOSE_FACTOR[p_rating]
-                k_target = crop.k_requirement_kg_per_ha * stage_frac * DOSE_FACTOR[k_rating]
+                n_target = crop.n_requirement_kg_per_ha * (n_pct / 100) * DOSE_FACTOR[n_rating]
+                p_target = crop.p_requirement_kg_per_ha * (p_pct / 100) * DOSE_FACTOR[p_rating]
+                k_target = crop.k_requirement_kg_per_ha * (k_pct / 100) * DOSE_FACTOR[k_rating]
                 # Small ET0-driven noise: faster growth under warmer/higher-ET0
                 # conditions pulls slightly more N.
                 n_target *= 1.0 + 0.01 * (et0 - 5.0)
@@ -113,7 +129,9 @@ def _build_synthetic_training_set(
                         crop.n_requirement_kg_per_ha,
                         crop.p_requirement_kg_per_ha,
                         crop.k_requirement_kg_per_ha,
-                        stage_frac,
+                        n_pct,
+                        p_pct,
+                        k_pct,
                         RATING_SCORE[n_rating],
                         RATING_SCORE[p_rating],
                         RATING_SCORE[k_rating],
@@ -175,7 +193,7 @@ def run(vector: EnrichedFeatureVector) -> ModuleResponse:
             details={"recommended_npk": None, "current_estimated_usage": None, "reduction_percent": None, "explanation": []},
         )
 
-    stage_frac = _stage_fraction(aggregated.crop_stage_hint)
+    n_pct, p_pct, k_pct = _stage_split_pct(crop.crop_name, aggregated.crop_stage_hint)
     soil = vector.soil
     n_score = RATING_SCORE.get(rate_nutrient("n_kg_per_ha", soil.n_kg_per_ha.value) or "medium", 75.0)
     p_score = RATING_SCORE.get(rate_nutrient("p_kg_per_ha", soil.p_kg_per_ha.value) or "medium", 75.0)
@@ -195,7 +213,9 @@ def run(vector: EnrichedFeatureVector) -> ModuleResponse:
                 crop.n_requirement_kg_per_ha,
                 crop.p_requirement_kg_per_ha,
                 crop.k_requirement_kg_per_ha,
-                stage_frac,
+                n_pct,
+                p_pct,
+                k_pct,
                 n_score,
                 p_score,
                 k_score,
@@ -268,7 +288,7 @@ def run(vector: EnrichedFeatureVector) -> ModuleResponse:
         "reduction_efficiency_score": reduction_efficiency_score,
         "explanation": explanation,
         "farmer_actions": nutrient_notes or ["Follow the recommended split dose above for this growth stage."],
-        "model": "RandomForestRegressor (multi-output N/P/K), trained on a synthetic ICAR-derived dataset - see module docstring",
+        "model": "RandomForestRegressor (multi-output N/P/K), trained on data/npk_stage_split.json's per-growth-stage split table - see module docstring",
         "is_dummy_data": True,
     }
     return ModuleResponse.ok(MODULE_NAME, summary, details, confidence=None)

@@ -193,6 +193,7 @@ agri-monitor/
 │   │   └── train_lowmem.py
 │   ├── data/
 │   │   ├── crop_reference.json
+│   │   ├── npk_stage_split.json
 │   │   ├── pincode_lookup.csv
 │   │   └── soil_health_card.csv
 │   ├── models/
