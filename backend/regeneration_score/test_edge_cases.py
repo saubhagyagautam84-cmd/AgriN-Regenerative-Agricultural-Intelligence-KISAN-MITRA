@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from regeneration_score.dynamic_weights import get_dynamic_weights
 from regeneration_score.score_engine import compute_regeneration_score, STATIC_WEIGHTS
+from services.regen.geo_resolvers import resolve_soil_field, resolve_crop_suitability
 
 
 def mock_module(raw_score: float, confidence_source: str = "observed") -> dict:
@@ -112,7 +113,7 @@ def test_improvement_tip_never_negative_for_high_raw_score() -> None:
         "M1_rotation": mock_module(95, "observed"),
         "M2_soil_carbon": mock_module(95, "observed"),
         "M3_fertilizer": mock_module(95, "observed"),
-        "M4_cover_crop": mock_module(95, "estimated"),  # weakest by confidence, not by raw performance
+        "M4_cover_crop": mock_module(95, "national_avg"),  # weakest by confidence, not by raw performance
         "M5_irrigation": mock_module(95, "observed"),
     }
     result = compute_regeneration_score(modules)
@@ -120,6 +121,86 @@ def test_improvement_tip_never_negative_for_high_raw_score() -> None:
     assert result["weakest_module"] == "M4_cover_crop"
     assert "~-" not in result["improvement_tip"], f"improvement_tip must never show a negative delta: {result['improvement_tip']!r}"
     print(f"[PASS] test_improvement_tip_never_negative_for_high_raw_score (tip={result['improvement_tip']!r})")
+
+
+def test_soil_and_crop_suitability_diverge_for_same_pin() -> None:
+    """
+    Geographic Confidence Ladder - the core behavior the two-chain design
+    exists to enable: soil and crop-suitability confidence must be able to
+    land on DIFFERENT rungs for the identical PIN code, because they
+    degrade through different geography (soil skips the zone level
+    entirely; crop suitability starts there).
+
+    PIN 302001 (Jaipur) is real, already-existing test data: its only Soil
+    Health Card row has a malformed extra column and is silently dropped by
+    the CSV parser (confirmed: 0 valid Jaipur/Rajasthan records anywhere),
+    while geo_reference.json still resolves it to a real agro-climatic
+    zone. So soil correctly bottoms out at the ladder's floor while crop
+    suitability sits comfortably at its normal starting rung.
+    """
+    soil = resolve_soil_field("302001", "ph", None)
+    crop = resolve_crop_suitability("302001")
+
+    assert soil.confidence_level == "national_avg", f"expected soil to fall through to national_avg, got {soil.confidence_level!r}"
+    assert crop.confidence_level == "zone_baseline", f"expected crop suitability to sit at zone_baseline, got {crop.confidence_level!r}"
+    assert soil.confidence_level != crop.confidence_level
+    print(
+        f"[PASS] test_soil_and_crop_suitability_diverge_for_same_pin "
+        f"(soil={soil.confidence_level!r}, crop={crop.confidence_level!r})"
+    )
+
+
+def test_soil_resolution_skips_to_state_when_district_missing() -> None:
+    """
+    Each fallback step must actually CHECK data availability, not assume
+    the next level down exists. PIN 147001 (Patiala, Punjab) has zero Soil
+    Health Card rows for its own district (deliberately - see
+    geo_reference.json's note on that entry) but Punjab as a whole does
+    (Ludhiana + Amritsar). Resolution must land on state_avg, not error and
+    not silently drop all the way to national_avg past a state average
+    that was actually available.
+    """
+    resolved = resolve_soil_field("147001", "ph", None)
+    assert resolved.confidence_level == "state_avg", f"expected state_avg (district has no data, state does), got {resolved.confidence_level!r}"
+    assert resolved.value is not None
+    print(f"[PASS] test_soil_resolution_skips_to_state_when_district_missing (level={resolved.confidence_level!r}, detail={resolved.detail!r})")
+
+
+def test_farmer_own_value_always_wins() -> None:
+    """The farmer's own entered value must outrank even a perfect block-level match."""
+    resolved = resolve_soil_field("141001", "ph", 7.2)
+    assert resolved.confidence_level == "observed"
+    assert resolved.value == 7.2
+    print("[PASS] test_farmer_own_value_always_wins")
+
+
+def test_sparse_data_triggers_low_confidence_label() -> None:
+    """
+    A farmer profile with real geographic context but no real local data
+    anywhere (equivalent to the spec's farmer_011_all_data_missing_insufficient
+    sparse-data profile) must reach the NEW third label - not silently fall
+    back to "Estimated" for every non-High case, which would hide just how
+    thin the underlying data actually is.
+    """
+    sparse = {name: mock_module(55, "national_avg") for name in STATIC_WEIGHTS}
+    result = compute_regeneration_score(sparse)
+
+    assert result["confidence_level"] == "Low confidence — mostly regional averages", (
+        f"expected the new sparse-data label, got {result['confidence_level']!r}"
+    )
+    print(f"[PASS] test_sparse_data_triggers_low_confidence_label (confidence_level={result['confidence_level']!r})")
+
+
+def test_confidence_breakdown_carries_per_module_explanation() -> None:
+    """STEP 6: the dashboard needs a level + a human explanation per module, not just a bare tier name."""
+    modules = {name: mock_module(70, "district_avg") for name in STATIC_WEIGHTS}
+    result = compute_regeneration_score(modules)
+
+    for name, entry in result["breakdown"].items():
+        if name == "_conflicts":
+            continue
+        assert "confidence_explanation" in entry, f"{name}'s breakdown entry is missing confidence_explanation"
+    print("[PASS] test_confidence_breakdown_carries_per_module_explanation")
 
 
 def test_dynamic_weights_wired_into_engine() -> None:
@@ -148,5 +229,10 @@ if __name__ == "__main__":
     test_weights_always_sum_to_one()
     test_improvement_tip_never_negative_for_high_raw_score()
     test_dynamic_weights_always_sum_to_one()
+    test_soil_and_crop_suitability_diverge_for_same_pin()
+    test_soil_resolution_skips_to_state_when_district_missing()
+    test_farmer_own_value_always_wins()
+    test_sparse_data_triggers_low_confidence_label()
+    test_confidence_breakdown_carries_per_module_explanation()
     test_dynamic_weights_wired_into_engine()
     print("\nAll edge case tests passed.")

@@ -189,6 +189,7 @@ const pa: TranslationShape = {
     insufficientData: "ਅੰਕੜੇ ਅਧੂਰੇ ਹਨ - ਕਿਰਪਾ ਕਰਕੇ ਮਿੱਟੀ ਜਾਂਚ ਪੂਰੀ ਕਰੋ",
     highConfidence: "✅ ਪੂਰਾ ਭਰੋਸਾ",
     estimatedConfidence: "⚠️ ਅਨੁਮਾਨਿਤ (ਮਿੱਟੀ ਜਾਂਚ ਜੋੜ ਕੇ ਸੁਧਾਰੋ)",
+    lowConfidence: "🔴 ਘੱਟ ਭਰੋਸਾ — ਜ਼ਿਆਦਾਤਰ ਖੇਤਰੀ ਔਸਤ 'ਤੇ ਆਧਾਰਿਤ",
     moduleLabels: {
       M1_rotation: "ਫਸਲ ਚੱਕਰ (M1)",
       M2_soil_carbon: "ਮਿੱਟੀ ਕਾਰਬਨ (M2)",
@@ -197,9 +198,12 @@ const pa: TranslationShape = {
       M5_irrigation: "ਜਲ ਕੁਸ਼ਲਤਾ (M5)",
     },
     confidenceBadge: {
-      observed: "ਅਸਲੀ",
+      national_avg: "ਰਾਸ਼ਟਰੀ ਔਸਤ",
+      state_avg: "ਰਾਜ ਔਸਤ",
+      zone_baseline: "ਖੇਤਰੀ ਅਨੁਮਾਨ",
       district_avg: "ਜ਼ਿਲ੍ਹਾ ਔਸਤ",
-      estimated: "ਅਨੁਮਾਨਿਤ",
+      block_avg: "ਬਲਾਕ ਔਸਤ",
+      observed: "ਅਸਲੀ",
     },
     mixedSignals: "ਮਿਲੇ-ਜੁਲੇ ਸੰਕੇਤ:",
     scoreDriversTitle: "ਸਕੋਰ ਨੂੰ ਕੀ ਪ੍ਰਭਾਵਿਤ ਕਰ ਰਿਹਾ ਹੈ",

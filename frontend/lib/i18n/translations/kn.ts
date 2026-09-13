@@ -189,6 +189,7 @@ const kn: TranslationShape = {
     insufficientData: "ಡೇಟಾ ಸಾಕಾಗುವುದಿಲ್ಲ - ದಯವಿಟ್ಟು ಮಣ್ಣು ಪರೀಕ್ಷೆಯನ್ನು ಪೂರ್ಣಗೊಳಿಸಿ",
     highConfidence: "✅ ಪೂರ್ಣ ವಿಶ್ವಾಸ",
     estimatedConfidence: "⚠️ ಅಂದಾಜು (ಮಣ್ಣು ಪರೀಕ್ಷೆ ಸೇರಿಸಿ ಸುಧಾರಿಸಿ)",
+    lowConfidence: "🔴 ಕಡಿಮೆ ವಿಶ್ವಾಸ — ಹೆಚ್ಚಾಗಿ ಪ್ರಾದೇಶಿಕ ಸರಾಸರಿಗಳ ಆಧಾರಿತ",
     moduleLabels: {
       M1_rotation: "ಬೆಳೆ ಸರದಿ (M1)",
       M2_soil_carbon: "ಮಣ್ಣಿನ ಇಂಗಾಲ (M2)",
@@ -197,9 +198,12 @@ const kn: TranslationShape = {
       M5_irrigation: "ನೀರಿನ ದಕ್ಷತೆ (M5)",
     },
     confidenceBadge: {
-      observed: "ವಾಸ್ತವ",
+      national_avg: "ರಾಷ್ಟ್ರೀಯ ಸರಾಸರಿ",
+      state_avg: "ರಾಜ್ಯ ಸರಾಸರಿ",
+      zone_baseline: "ಕೃಷಿ-ಹವಾಮಾನ ವಲಯ ಅಂದಾಜು",
       district_avg: "ಜಿಲ್ಲಾ ಸರಾಸರಿ",
-      estimated: "ಅಂದಾಜು",
+      block_avg: "ಬ್ಲಾಕ್ ಸರಾಸರಿ",
+      observed: "ವಾಸ್ತವ",
     },
     mixedSignals: "ಮಿಶ್ರ ಸಂಕೇತಗಳು:",
     scoreDriversTitle: "ಸ್ಕೋರ್ ಅನ್ನು ಏನು ಪ್ರಭಾವಿಸುತ್ತಿದೆ",

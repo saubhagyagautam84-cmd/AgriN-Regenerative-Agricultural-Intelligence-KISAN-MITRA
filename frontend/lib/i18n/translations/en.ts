@@ -191,6 +191,7 @@ const en = {
     insufficientData: "Insufficient data - please complete soil test",
     highConfidence: "✅ High confidence",
     estimatedConfidence: "⚠️ Estimated (add a soil test to improve)",
+    lowConfidence: "🔴 Low confidence — mostly regional averages",
     moduleLabels: {
       M1_rotation: "Rotation (M1)",
       M2_soil_carbon: "Soil carbon (M2)",
@@ -199,9 +200,12 @@ const en = {
       M5_irrigation: "Water efficiency (M5)",
     },
     confidenceBadge: {
-      observed: "observed",
+      national_avg: "national avg",
+      state_avg: "state avg",
+      zone_baseline: "zone estimate",
       district_avg: "district avg",
-      estimated: "estimated",
+      block_avg: "block avg",
+      observed: "observed",
     },
     mixedSignals: "Mixed signals:",
     scoreDriversTitle: "What's driving this score",

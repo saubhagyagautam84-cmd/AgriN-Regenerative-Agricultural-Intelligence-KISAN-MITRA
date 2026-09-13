@@ -460,14 +460,29 @@ export interface RegenIrrigationDetails {
   is_dummy_data?: boolean;
 }
 
-export type RegenConfidenceLabel = "High" | "Estimated";
+export type RegenConfidenceLabel = "High" | "Estimated" | "Low confidence — mostly regional averages";
 
-export type RegenModuleConfidence = "observed" | "district_avg" | "estimated";
+/**
+ * The 6-level Geographic Confidence Ladder (backend/regeneration_score/confidence.py).
+ * Soil fields and crop-suitability data resolve through SEPARATE chains
+ * (backend/services/regen/geo_resolvers.py) but land on this one shared
+ * scale - worst -> best: national_avg, state_avg, zone_baseline,
+ * district_avg, block_avg, observed.
+ */
+export type RegenModuleConfidence =
+  | "national_avg"
+  | "state_avg"
+  | "zone_baseline"
+  | "district_avg"
+  | "block_avg"
+  | "observed";
 
 export interface RegenBreakdownEntry {
   score: number;
   weight: number;
   confidence: RegenModuleConfidence;
+  /** Plain-English trace behind the level, e.g. "Ludhiana district average (2 samples)" - backend-generated dynamic content, stays English (see i18n's documented scope boundary). */
+  confidence_explanation?: string;
 }
 
 export interface RegenScoreDriver {

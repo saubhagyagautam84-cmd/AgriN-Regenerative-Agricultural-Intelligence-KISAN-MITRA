@@ -230,7 +230,9 @@ def main() -> int:
         score = regen["score"]
         assert score is None or 0 <= score <= 100, f"{label}: regeneration_score.score {score} out of 0-100"
         confidence = regen["confidence"]
-        assert confidence in (None, "High", "Estimated"), f"{label}: unexpected confidence {confidence!r}"
+        assert confidence in (None, "High", "Estimated", "Low confidence — mostly regional averages"), (
+            f"{label}: unexpected confidence {confidence!r}"
+        )
         if score is not None:
             # Part C (backend/regeneration_score/) fields - present on every
             # non-null score, absent (null) only on the all-5-modules-failed path.
@@ -304,14 +306,18 @@ def main() -> int:
     # The unresolved-PIN scenario is the one genuinely missing soil data
     # (the other "missing soil-test" scenarios still resolve real Soil
     # Health Card records by PIN regardless of the checkbox) - confirm it
-    # actually produces "Estimated", proving confidence traces real data
-    # provenance rather than the farmer's soil_test_available claim.
+    # bottoms out at the Geographic Confidence Ladder's new sparse-data
+    # label: PIN 999999 isn't in geo_reference.json at all, so BOTH chains
+    # (resolve_soil_field and resolve_crop_suitability) fall all the way to
+    # national_avg, proving confidence traces real data provenance rather
+    # than the farmer's soil_test_available claim.
     unresolved_payload = post_json("/api/regenerate", scenarios["unresolved PIN (no Soil Health Card on file at all)"])[1]
     unresolved_confidence = unresolved_payload["regeneration_score"]["confidence"]
-    assert unresolved_confidence == "Estimated", (
-        f"unresolved PIN should degrade confidence to 'Estimated' (no soil data anywhere to trace back to), got {unresolved_confidence!r}"
+    assert unresolved_confidence == "Low confidence — mostly regional averages", (
+        "unresolved PIN should degrade confidence to the sparse-data label "
+        f"(no soil data anywhere to trace back to), got {unresolved_confidence!r}"
     )
-    print("   [OK] unresolved PIN correctly degrades regeneration_score.confidence to 'Estimated'")
+    print("   [OK] unresolved PIN correctly degrades regeneration_score.confidence to the sparse-data label")
 
     missing_photo_payload = post_json("/api/regenerate", scenarios["missing-photo fallback (crop_health_score omitted)"])[1]
     m1_reasons = " ".join(

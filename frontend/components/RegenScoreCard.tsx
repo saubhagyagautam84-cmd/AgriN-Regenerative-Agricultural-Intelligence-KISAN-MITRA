@@ -10,10 +10,17 @@
 import type { RegenerationScore } from "@/lib/types";
 import { useI18n } from "@/lib/i18n/I18nContext";
 
+// The 6-level Geographic Confidence Ladder, worst -> best - see
+// backend/regeneration_score/confidence.py. zone_baseline gets its own sky
+// (not amber/red) tone since it's crop suitability's NORMAL resting level,
+// not a degraded one - see geo_resolvers.py's module docstring.
 const CONFIDENCE_BADGE_CLASS: Record<string, string> = {
-  observed: "bg-crop-100 text-crop-700",
+  national_avg: "bg-danger-100 text-danger",
+  state_avg: "bg-marigold-100 text-marigold-ink",
+  zone_baseline: "bg-sky-100 text-sky",
   district_avg: "bg-amber-100 text-amber-900",
-  estimated: "bg-red-100 text-red-800",
+  block_avg: "bg-crop-50 text-crop-600",
+  observed: "bg-crop-100 text-crop-700",
 };
 
 function scoreColor(score: number): string {
@@ -21,6 +28,21 @@ function scoreColor(score: number): string {
   if (score >= 40) return "text-amber-600";
   return "text-red-600";
 }
+
+// Overall confidence_level is now the 3-tier label from score_engine.py's
+// _overall_confidence_level (High / Estimated / the new sparse-data label),
+// keyed here since it can't be a plain identifier.
+const OVERALL_CONFIDENCE_CLASS: Record<string, string> = {
+  High: "bg-crop-100 text-crop-700",
+  Estimated: "bg-amber-100 text-amber-900",
+  "Low confidence — mostly regional averages": "bg-danger-100 text-danger",
+};
+
+const OVERALL_CONFIDENCE_LABEL_KEY: Record<string, string> = {
+  High: "regenScore.highConfidence",
+  Estimated: "regenScore.estimatedConfidence",
+  "Low confidence — mostly regional averages": "regenScore.lowConfidence",
+};
 
 export default function RegenScoreCard({ regen }: { regen: RegenerationScore }) {
   const { t } = useI18n();
@@ -76,10 +98,10 @@ export default function RegenScoreCard({ regen }: { regen: RegenerationScore }) 
           <div className="mt-1 flex flex-wrap gap-2">
             <span
               className={`inline-block rounded-full px-3 py-1 text-sm font-bold ${
-                regen.confidence === "High" ? "bg-crop-100 text-crop-700" : "bg-amber-100 text-amber-900"
+                OVERALL_CONFIDENCE_CLASS[regen.confidence ?? ""] ?? "bg-amber-100 text-amber-900"
               }`}
             >
-              {regen.confidence === "High" ? t("regenScore.highConfidence") : t("regenScore.estimatedConfidence")}
+              {t(OVERALL_CONFIDENCE_LABEL_KEY[regen.confidence ?? ""] ?? "regenScore.estimatedConfidence")}
             </span>
             {regen.score_tone && (
               <span className="inline-block rounded-full bg-soil-100 px-3 py-1 text-sm font-bold text-soil-800 capitalize">
@@ -90,7 +112,7 @@ export default function RegenScoreCard({ regen }: { regen: RegenerationScore }) 
 
           <div className="mt-4 space-y-2">
             {Object.entries(moduleEntries).map(([key, entry]) => {
-              const badgeClass = CONFIDENCE_BADGE_CLASS[entry.confidence] ?? CONFIDENCE_BADGE_CLASS.estimated;
+              const badgeClass = CONFIDENCE_BADGE_CLASS[entry.confidence] ?? CONFIDENCE_BADGE_CLASS.national_avg;
               const labelKey = `regenScore.moduleLabels.${key}`;
               const translatedLabel = t(labelKey);
               const moduleLabel = translatedLabel === labelKey ? key : translatedLabel;
@@ -108,6 +130,9 @@ export default function RegenScoreCard({ regen }: { regen: RegenerationScore }) 
                   <div className="mt-0.5 h-1.5 overflow-hidden rounded-full bg-soil-100">
                     <div className="h-full rounded-full bg-crop-500" style={{ width: `${entry.score}%` }} />
                   </div>
+                  {entry.confidence_explanation && (
+                    <p className="mt-0.5 text-xs text-soil-700">{entry.confidence_explanation}</p>
+                  )}
                 </div>
               );
             })}

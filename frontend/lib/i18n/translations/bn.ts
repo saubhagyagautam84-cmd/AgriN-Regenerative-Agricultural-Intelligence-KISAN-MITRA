@@ -189,6 +189,7 @@ const bn: TranslationShape = {
     insufficientData: "তথ্য অসম্পূর্ণ - দয়া করে মাটি পরীক্ষা সম্পূর্ণ করুন",
     highConfidence: "✅ পূর্ণ আস্থা",
     estimatedConfidence: "⚠️ আনুমানিক (মাটি পরীক্ষা যোগ করে উন্নত করুন)",
+    lowConfidence: "🔴 কম আস্থা — বেশিরভাগ আঞ্চলিক গড়ের উপর ভিত্তি করে",
     moduleLabels: {
       M1_rotation: "ফসল আবর্তন (M1)",
       M2_soil_carbon: "মাটির কার্বন (M2)",
@@ -197,9 +198,12 @@ const bn: TranslationShape = {
       M5_irrigation: "জল দক্ষতা (M5)",
     },
     confidenceBadge: {
-      observed: "প্রকৃত",
+      national_avg: "জাতীয় গড়",
+      state_avg: "রাজ্য গড়",
+      zone_baseline: "কৃষি-জলবায়ু অঞ্চল অনুমান",
       district_avg: "জেলা গড়",
-      estimated: "আনুমানিক",
+      block_avg: "ব্লক গড়",
+      observed: "প্রকৃত",
     },
     mixedSignals: "মিশ্র সংকেত:",
     scoreDriversTitle: "স্কোরকে কী প্রভাবিত করছে",

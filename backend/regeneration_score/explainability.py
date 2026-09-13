@@ -23,12 +23,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from regeneration_score.confidence import CONFIDENCE_MULTIPLIER
+from regeneration_score.confidence import GEOGRAPHIC_CONFIDENCE_MULTIPLIER
 
 
 def _baseline_relative_impact(raw_score: float, weight: float, confidence_source: str) -> float:
     """This module's actual weighted contribution to regen_score, minus what a neutral (50) module would give."""
-    multiplier = CONFIDENCE_MULTIPLIER[confidence_source]
+    multiplier = GEOGRAPHIC_CONFIDENCE_MULTIPLIER[confidence_source]
     actual = raw_score * multiplier * weight
     neutral = 50.0 * multiplier * weight
     return round(actual - neutral, 1)

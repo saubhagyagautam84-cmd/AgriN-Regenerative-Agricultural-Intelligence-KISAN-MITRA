@@ -189,6 +189,7 @@ const gu: TranslationShape = {
     insufficientData: "આંકડા અધૂરા છે - કૃપા કરી માટી પરીક્ષણ પૂર્ણ કરો",
     highConfidence: "✅ પૂરો ભરોસો",
     estimatedConfidence: "⚠️ અંદાજિત (માટી પરીક્ષણ ઉમેરીને સુધારો)",
+    lowConfidence: "🔴 ઓછો ભરોસો — મોટાભાગે પ્રાદેશિક સરેરાશ પર આધારિત",
     moduleLabels: {
       M1_rotation: "પાક ફેરબદલી (M1)",
       M2_soil_carbon: "માટી કાર્બન (M2)",
@@ -197,9 +198,12 @@ const gu: TranslationShape = {
       M5_irrigation: "જળ કાર્યક્ષમતા (M5)",
     },
     confidenceBadge: {
-      observed: "વાસ્તવિક",
+      national_avg: "રાષ્ટ્રીય સરેરાશ",
+      state_avg: "રાજ્ય સરેરાશ",
+      zone_baseline: "કૃષિ-આબોહવા ઝોન અંદાજ",
       district_avg: "જિલ્લા સરેરાશ",
-      estimated: "અંદાજિત",
+      block_avg: "બ્લોક સરેરાશ",
+      observed: "વાસ્તવિક",
     },
     mixedSignals: "મિશ્ર સંકેતો:",
     scoreDriversTitle: "સ્કોરને શું અસર કરે છે",

@@ -189,6 +189,7 @@ const hi: TranslationShape = {
     insufficientData: "आंकड़े अधूरे हैं - कृपया मिट्टी जाँच पूरी करें",
     highConfidence: "✅ पूरा भरोसा",
     estimatedConfidence: "⚠️ अनुमानित (मिट्टी जाँच जोड़कर सुधारें)",
+    lowConfidence: "🔴 कम भरोसा — ज़्यादातर क्षेत्रीय औसत पर आधारित",
     moduleLabels: {
       M1_rotation: "फसल चक्र (M1)",
       M2_soil_carbon: "मिट्टी कार्बन (M2)",
@@ -197,9 +198,12 @@ const hi: TranslationShape = {
       M5_irrigation: "जल दक्षता (M5)",
     },
     confidenceBadge: {
-      observed: "वास्तविक",
+      national_avg: "राष्ट्रीय औसत",
+      state_avg: "राज्य औसत",
+      zone_baseline: "जलवायु क्षेत्र अनुमान",
       district_avg: "ज़िला औसत",
-      estimated: "अनुमानित",
+      block_avg: "ब्लॉक औसत",
+      observed: "वास्तविक",
     },
     mixedSignals: "मिले-जुले संकेत:",
     scoreDriversTitle: "स्कोर को क्या प्रभावित कर रहा है",

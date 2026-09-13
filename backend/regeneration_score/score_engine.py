@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from regeneration_score.confidence import CONFIDENCE_MULTIPLIER, weighted_module_score
+from regeneration_score.confidence import GEO_CONFIDENCE_RANK, weighted_module_score
 
 STATIC_WEIGHTS: dict[str, float] = {
     "M1_rotation": 0.20,
@@ -55,8 +55,22 @@ def _compute_total(adapted_modules: dict[str, dict[str, Any]], weights: dict[str
 
 
 def _overall_confidence_level(adapted_modules: dict[str, dict[str, Any]]) -> str:
-    sources = {m["confidence_source"] for m in adapted_modules.values()}
-    return "High" if sources == {"observed"} else "Estimated"
+    """
+    Level-based label (STEP 5 of the Geographic Confidence Ladder spec),
+    replacing the old binary "High" if every module is "observed" else
+    "Estimated". `levels_used` is the REAL confidence_source each module
+    actually resolved to (traced through adapters.py, never hardcoded) -
+    the label is judged by the WORST (lowest-rank) level among them, same
+    "as confident as your shakiest module" principle as each module's own
+    confidence_source already uses internally.
+    """
+    levels_used = [GEO_CONFIDENCE_RANK[m["confidence_source"]] for m in adapted_modules.values()]
+    lowest = min(levels_used)
+    if lowest >= GEO_CONFIDENCE_RANK["block_avg"]:  # block_avg (4) or observed (5)
+        return "High"
+    if lowest >= GEO_CONFIDENCE_RANK["zone_baseline"]:  # zone_baseline (2) or district_avg (3)
+        return "Estimated"
+    return "Low confidence — mostly regional averages"  # national_avg (0) or state_avg (1)
 
 
 def _find_weakest_module(adapted_modules: dict[str, dict[str, Any]]) -> str:
@@ -158,9 +172,15 @@ def compute_regeneration_score(
         }
 
     # Modules that DID fail (but not all) contribute 0 rather than crashing -
-    # never let one broken module take down the whole score.
+    # never let one broken module take down the whole score. Tagged at the
+    # ladder's floor (national_avg) since a failed module has no real data
+    # behind it at all - not a 7th tier, just the lowest real one.
     safe_modules = {
-        name: (m if m is not None else {"raw_score": 0.0, "confidence_source": "estimated"})
+        name: (
+            m
+            if m is not None
+            else {"raw_score": 0.0, "confidence_source": "national_avg", "confidence_detail": "module failed - no data"}
+        )
         for name, m in adapted_modules.items()
     }
 
@@ -170,11 +190,20 @@ def compute_regeneration_score(
     improvement_tip = _simulate_improvement_tip(safe_modules, weights, weakest_module, regen_score)
     conflicts = _detect_conflicts(safe_modules)
 
+    # confidence_explanation is the plain "from X" trace clause only (e.g.
+    # "Ludhiana district average (2 samples)") - deliberately NOT prefixed
+    # with a tier adjective like "Estimated" here, since that word needs to
+    # be TRANSLATED (see frontend/lib/i18n's regenScore.confidenceBadge) and
+    # this string is backend-generated dynamic content, which stays English
+    # for this pass (see the multilingual rollout's documented scope
+    # boundary). The frontend renders the translated badge + this clause
+    # together - see components/RegenScoreCard.tsx.
     breakdown = {
         name: {
             "score": module["raw_score"],
             "weight": weights[name],
             "confidence": module["confidence_source"],
+            "confidence_explanation": module.get("confidence_detail") or "",
         }
         for name, module in safe_modules.items()
     }

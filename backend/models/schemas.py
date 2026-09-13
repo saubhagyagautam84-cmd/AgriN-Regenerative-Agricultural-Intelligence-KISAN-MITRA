@@ -462,7 +462,7 @@ class CropOption(BaseModel):
 # PART B - Regenerative Intelligence Engine
 # --------------------------------------------------------------------------
 
-RegenConfidenceLabel = Literal["High", "Estimated"]
+RegenConfidenceLabel = Literal["High", "Estimated", "Low confidence — mostly regional averages"]
 
 
 class RegenerationScore(BaseModel):

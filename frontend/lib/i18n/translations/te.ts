@@ -189,6 +189,7 @@ const te: TranslationShape = {
     insufficientData: "డేటా సరిపోదు - దయచేసి మట్టి పరీక్షను పూర్తి చేయండి",
     highConfidence: "✅ పూర్తి నమ్మకం",
     estimatedConfidence: "⚠️ అంచనా వేయబడింది (మట్టి పరీక్షను జోడించి మెరుగుపరచండి)",
+    lowConfidence: "🔴 తక్కువ నమ్మకం — ఎక్కువగా ప్రాంతీయ సగటుల ఆధారంగా",
     moduleLabels: {
       M1_rotation: "పంట మార్పిడి (M1)",
       M2_soil_carbon: "మట్టి కార్బన్ (M2)",
@@ -197,9 +198,12 @@ const te: TranslationShape = {
       M5_irrigation: "నీటి సామర్థ్యం (M5)",
     },
     confidenceBadge: {
-      observed: "వాస్తవం",
+      national_avg: "జాతీయ సగటు",
+      state_avg: "రాష్ట్ర సగటు",
+      zone_baseline: "వ్యవసాయ-వాతావరణ మండల అంచనా",
       district_avg: "జిల్లా సగటు",
-      estimated: "అంచనా",
+      block_avg: "బ్లాక్ సగటు",
+      observed: "వాస్తవం",
     },
     mixedSignals: "మిశ్రమ సంకేతాలు:",
     scoreDriversTitle: "స్కోరును ఏది ప్రభావితం చేస్తోంది",

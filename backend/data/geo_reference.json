@@ -1,0 +1,38 @@
+{
+  "_comment": "One row per PIN code this project already supports (see pincode_lookup.csv) - per the master prompt's own scope guard, this deliberately does NOT attempt full national PIN coverage. agro_climatic_zone / agro_climatic_zone_id follow the Planning Commission of India's standard 15 ICAR agro-climatic zones (a real, publicly documented classification - not invented). Assignments below are at district granularity, which is the right precision for this scheme.",
+  "agro_climatic_zones": {
+    "ACZ-1": "Western Himalayan Region",
+    "ACZ-2": "Eastern Himalayan Region",
+    "ACZ-3": "Lower Gangetic Plains Region",
+    "ACZ-4": "Middle Gangetic Plains Region",
+    "ACZ-5": "Upper Gangetic Plains Region",
+    "ACZ-6": "Trans-Gangetic Plains Region",
+    "ACZ-7": "Eastern Plateau and Hills Region",
+    "ACZ-8": "Central Plateau and Hills Region",
+    "ACZ-9": "Western Plateau and Hills Region",
+    "ACZ-10": "Southern Plateau and Hills Region",
+    "ACZ-11": "East Coast Plains and Hills Region",
+    "ACZ-12": "West Coast Plains and Ghat Region",
+    "ACZ-13": "Gujarat Plains and Hills Region",
+    "ACZ-14": "Western Dry Region",
+    "ACZ-15": "The Islands Region"
+  },
+  "locations": [
+    { "pin_code": "141001", "village_or_block": "Ludhiana-I", "district": "Ludhiana", "state": "Punjab", "agro_climatic_zone": "Trans-Gangetic Plains Region", "agro_climatic_zone_id": "ACZ-6" },
+    { "pin_code": "143001", "village_or_block": "Ajnala", "district": "Amritsar", "state": "Punjab", "agro_climatic_zone": "Trans-Gangetic Plains Region", "agro_climatic_zone_id": "ACZ-6" },
+    { "pin_code": "462001", "village_or_block": "Phanda", "district": "Bhopal", "state": "Madhya Pradesh", "agro_climatic_zone": "Central Plateau and Hills Region", "agro_climatic_zone_id": "ACZ-8" },
+    { "pin_code": "452001", "village_or_block": "Indore", "district": "Indore", "state": "Madhya Pradesh", "agro_climatic_zone": "Central Plateau and Hills Region", "agro_climatic_zone_id": "ACZ-8" },
+    { "pin_code": "413001", "village_or_block": "Mohol", "district": "Solapur", "state": "Maharashtra", "agro_climatic_zone": "Western Plateau and Hills Region", "agro_climatic_zone_id": "ACZ-9" },
+    { "pin_code": "422001", "village_or_block": "Nashik", "district": "Nashik", "state": "Maharashtra", "agro_climatic_zone": "Western Plateau and Hills Region", "agro_climatic_zone_id": "ACZ-9" },
+    { "pin_code": "431001", "village_or_block": "Paithan", "district": "Chhatrapati Sambhajinagar", "state": "Maharashtra", "agro_climatic_zone": "Western Plateau and Hills Region", "agro_climatic_zone_id": "ACZ-9" },
+    { "pin_code": "221001", "village_or_block": "Harahua", "district": "Varanasi", "state": "Uttar Pradesh", "agro_climatic_zone": "Middle Gangetic Plains Region", "agro_climatic_zone_id": "ACZ-4" },
+    { "pin_code": "226001", "village_or_block": "Mall", "district": "Lucknow", "state": "Uttar Pradesh", "agro_climatic_zone": "Upper Gangetic Plains Region", "agro_climatic_zone_id": "ACZ-5" },
+    { "pin_code": "250001", "village_or_block": "Meerut", "district": "Meerut", "state": "Uttar Pradesh", "agro_climatic_zone": "Upper Gangetic Plains Region", "agro_climatic_zone_id": "ACZ-5" },
+    { "pin_code": "800001", "village_or_block": "Patna Sadar", "district": "Patna", "state": "Bihar", "agro_climatic_zone": "Middle Gangetic Plains Region", "agro_climatic_zone_id": "ACZ-4" },
+    { "pin_code": "842001", "village_or_block": "Musahri", "district": "Muzaffarpur", "state": "Bihar", "agro_climatic_zone": "Middle Gangetic Plains Region", "agro_climatic_zone_id": "ACZ-4" },
+    { "pin_code": "577001", "village_or_block": "Davanagere", "district": "Davanagere", "state": "Karnataka", "agro_climatic_zone": "Southern Plateau and Hills Region", "agro_climatic_zone_id": "ACZ-10" },
+    { "pin_code": "641001", "village_or_block": "Thondamuthur", "district": "Coimbatore", "state": "Tamil Nadu", "agro_climatic_zone": "Southern Plateau and Hills Region", "agro_climatic_zone_id": "ACZ-10" },
+    { "pin_code": "302001", "village_or_block": "Sanganer", "district": "Jaipur", "state": "Rajasthan", "agro_climatic_zone": "Western Dry Region", "agro_climatic_zone_id": "ACZ-14" },
+    { "pin_code": "147001", "village_or_block": "Patiala", "district": "Patiala", "state": "Punjab", "agro_climatic_zone": "Trans-Gangetic Plains Region", "agro_climatic_zone_id": "ACZ-6", "_note": "No Soil Health Card rows exist for Patiala in soil_health_card.csv (only Ludhiana/Amritsar do) - kept deliberately uncovered so tests can exercise the 'district missing, state present' fallback step honestly, without fabricating fake soil measurements." }
+  ]
+}

@@ -189,6 +189,7 @@ const mr: TranslationShape = {
     insufficientData: "आकडे अपुरे आहेत - कृपया माती परीक्षण पूर्ण करा",
     highConfidence: "✅ पूर्ण खात्री",
     estimatedConfidence: "⚠️ अंदाजित (माती परीक्षण जोडून सुधारा)",
+    lowConfidence: "🔴 कमी विश्वासार्हता — बहुतांश प्रादेशिक सरासरीवर आधारित",
     moduleLabels: {
       M1_rotation: "पीक फेरपालट (M1)",
       M2_soil_carbon: "माती कर्ब (M2)",
@@ -197,9 +198,12 @@ const mr: TranslationShape = {
       M5_irrigation: "जल कार्यक्षमता (M5)",
     },
     confidenceBadge: {
-      observed: "प्रत्यक्ष",
+      national_avg: "राष्ट्रीय सरासरी",
+      state_avg: "राज्य सरासरी",
+      zone_baseline: "हवामान विभाग अंदाज",
       district_avg: "जिल्हा सरासरी",
-      estimated: "अंदाजित",
+      block_avg: "तालुका सरासरी",
+      observed: "प्रत्यक्ष",
     },
     mixedSignals: "मिश्र संकेत:",
     scoreDriversTitle: "स्कोअरवर काय परिणाम करत आहे",

@@ -189,6 +189,7 @@ const ta: TranslationShape = {
     insufficientData: "தரவு போதுமானதாக இல்லை - தயவுசெய்து மண் பரிசோதனையை முடிக்கவும்",
     highConfidence: "✅ முழு நம்பிக்கை",
     estimatedConfidence: "⚠️ மதிப்பிடப்பட்டது (மண் பரிசோதனை சேர்த்து மேம்படுத்தவும்)",
+    lowConfidence: "🔴 குறைந்த நம்பிக்கை — பெரும்பாலும் பிராந்திய சராசரிகளை அடிப்படையாகக் கொண்டது",
     moduleLabels: {
       M1_rotation: "பயிர் சுழற்சி (M1)",
       M2_soil_carbon: "மண் கார்பன் (M2)",
@@ -197,9 +198,12 @@ const ta: TranslationShape = {
       M5_irrigation: "நீர் திறன் (M5)",
     },
     confidenceBadge: {
-      observed: "உண்மையான",
+      national_avg: "தேசிய சராசரி",
+      state_avg: "மாநில சராசரி",
+      zone_baseline: "வேளாண் காலநிலை மண்டல மதிப்பீடு",
       district_avg: "மாவட்ட சராசரி",
-      estimated: "மதிப்பிடப்பட்டது",
+      block_avg: "தொகுதி சராசரி",
+      observed: "உண்மையான",
     },
     mixedSignals: "கலவையான குறிகாட்டிகள்:",
     scoreDriversTitle: "மதிப்பெண்ணை என்ன பாதிக்கிறது",
