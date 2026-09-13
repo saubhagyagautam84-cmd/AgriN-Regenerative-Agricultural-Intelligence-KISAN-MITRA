@@ -28,6 +28,10 @@ visual_checks/
 
 # Env
 .env
+
+# Runtime SQLite DB (users/sessions/family members) - not source data, never
+# committed; see backend/services/auth.py.
+backend/data/app.sqlite3
 .env.local
 .env*.local
 

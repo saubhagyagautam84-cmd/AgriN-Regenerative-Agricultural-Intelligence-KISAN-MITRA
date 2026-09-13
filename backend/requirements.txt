@@ -6,3 +6,8 @@ pydantic>=2.9
 pandas>=2.2
 scikit-learn>=1.5
 python-multipart>=0.0.9
+# Verifies Firebase Phone Auth ID tokens using only the project ID (fetches
+# Google's public certs itself) - no service-account JSON needed. See
+# services/auth.py.
+google-auth>=2.35
+requests>=2.32

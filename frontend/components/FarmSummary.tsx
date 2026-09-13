@@ -34,7 +34,7 @@ function Tile({
   sub?: string;
 }) {
   return (
-    <div className="rounded-xl bg-white/70 px-3 py-2">
+    <div className="rounded-xl bg-surface/70 px-3 py-2">
       <div className="text-xs font-semibold uppercase tracking-wide text-soil-700">
         <span aria-hidden className="mr-1">
           {icon}

@@ -1,21 +1,37 @@
 "use client";
 
 /**
- * STEP 1 - the farmer input form.
+ * The 4-step farm input wizard, ported from kisan-sathi-frontend.html (the
+ * approved design/interaction prototype) - structure, copy and step
+ * boundaries follow that file; this version backs it with real React state
+ * instead of DOM manipulation, and wires every field to the real
+ * validation/API logic that already existed here.
  *
- * Only 8 things are asked for, 3 of them optional. Everything else (soil
- * card, weather, crop agronomy, district) is fetched server-side from the
- * PIN code and crop name - see docs/field-spec.md for the full field table.
+ * Steps (matches the prototype exactly):
+ *   1. Farm location & land   - PIN code, geolocation, land size + unit
+ *   2. Crop & sowing          - crop, sowing status, sowing date
+ *   3. Water & soil           - irrigation source, soil test + N/P/K/pH/OC
+ *   4. Photo & optional info  - crop photo, name/village
+ * Only steps 1 and 2 block advancing (matches the prototype); 3 and 4 are
+ * fully optional. Submitting step 4 calls the real onSubmit - there is no
+ * fake setTimeout anywhere in this file.
+ *
+ * Once the parent has a real result (`hasResult`), this component renders
+ * nothing: the wizard's progress bar/step-nav genuinely disappear rather
+ * than just having their content swapped (a prototype bug this project
+ * deliberately avoids reintroducing - see STEP 6 of the integration brief).
  *
  * Design constraints, because the user may have low digital literacy:
  *   - one visual row per idea, never two questions side by side
  *   - choices are big tap targets, not dropdowns, wherever there are <= 7 options
- *   - every label carries a Hindi subtitle
+ *   - every label is translated via the i18n system (see lib/i18n/)
  *   - errors appear under the field in plain language, never as a code
  */
 
 import { useEffect, useMemo, useState } from "react";
 import { checkCropHealth, fetchCropOptions } from "@/lib/api";
+import { useI18n } from "@/lib/i18n/I18nContext";
+import { speak } from "@/lib/voice/speech";
 import type {
   CropIntent,
   CropOption,
@@ -24,34 +40,18 @@ import type {
   LandUnit,
 } from "@/lib/types";
 
-// --------------------------------------------------------------------------
-// Choice tables (labels live in the UI, values match the Pydantic enums)
-// --------------------------------------------------------------------------
-
-const LAND_UNITS: { value: LandUnit; label: string; hint: string }[] = [
-  { value: "acre", label: "Acre", hint: "एकड़" },
-  { value: "hectare", label: "Hectare", hint: "हेक्टेयर" },
-  { value: "bigha", label: "Bigha", hint: "बीघा" },
-  { value: "guntha", label: "Guntha", hint: "गुंठा" },
+const LAND_UNIT_VALUES: LandUnit[] = ["acre", "hectare", "bigha", "guntha"];
+const IRRIGATION_SOURCE_VALUES: { value: IrrigationSource; icon: string }[] = [
+  { value: "rainfed", icon: "🌧️" },
+  { value: "canal", icon: "🌊" },
+  { value: "borewell", icon: "🕳️" },
+  { value: "tubewell", icon: "⛲" },
+  { value: "tank_pond", icon: "🏞️" },
+  { value: "drip_sprinkler", icon: "💧" },
 ];
-
-const IRRIGATION_SOURCES: {
-  value: IrrigationSource;
-  label: string;
-  hint: string;
-  icon: string;
-}[] = [
-  { value: "rainfed", label: "Rain only", hint: "बारिश", icon: "🌧️" },
-  { value: "canal", label: "Canal", hint: "नहर", icon: "🌊" },
-  { value: "borewell", label: "Borewell", hint: "बोरवेल", icon: "🕳️" },
-  { value: "tubewell", label: "Tubewell", hint: "ट्यूबवेल", icon: "⛲" },
-  { value: "tank_pond", label: "Tank / pond", hint: "तालाब", icon: "🏞️" },
-  { value: "drip_sprinkler", label: "Drip / sprinkler", hint: "ड्रिप", icon: "💧" },
-];
-
-const CROP_INTENTS: { value: CropIntent; label: string; hint: string; icon: string }[] = [
-  { value: "current", label: "Already sown", hint: "बो दिया है", icon: "🌱" },
-  { value: "planned", label: "Planning to sow", hint: "बोने वाला हूँ", icon: "📅" },
+const CROP_INTENT_VALUES: { value: CropIntent; icon: string }[] = [
+  { value: "current", icon: "🌱" },
+  { value: "planned", icon: "📅" },
 ];
 
 // Shown if the backend is unreachable, so the form is never unusable.
@@ -92,6 +92,7 @@ interface FormState {
 }
 
 type PhotoStatus = "idle" | "uploading" | "done" | "failed";
+type WizardStep = 1 | 2 | 3 | 4;
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -134,48 +135,55 @@ function numOrNull(value: string): number | null {
 /**
  * Client-side validation. Mirrors the Pydantic validators in
  * backend/models/schemas.py - the server re-checks everything, this just
- * saves the farmer a round trip.
+ * saves the farmer a round trip. Takes `t` so messages are translated.
  */
-function validate(state: FormState): Record<string, string> {
+function validate(state: FormState, t: (key: string) => string): Record<string, string> {
   const errors: Record<string, string> = {};
 
   if (!/^[1-9][0-9]{5}$/.test(state.pincode.trim())) {
-    errors.pincode = "Enter the 6-digit PIN code of your village.";
+    errors.pincode = t("form.validation.pincode");
   }
 
   const size = Number(state.land_size);
   if (!state.land_size.trim() || Number.isNaN(size)) {
-    errors.land_size = "Enter how much land you farm.";
+    errors.land_size = t("form.validation.landSizeRequired");
   } else if (size <= 0) {
-    errors.land_size = "Land size must be more than zero.";
+    errors.land_size = t("form.validation.landSizeTooSmall");
   } else if (size > 10000) {
-    errors.land_size = "That seems too large. Please check the number.";
+    errors.land_size = t("form.validation.landSizeTooLarge");
   }
 
   const cropName =
     state.crop_choice === OTHER_CROP ? state.crop_other.trim() : state.crop_choice.trim();
   if (!cropName) {
-    errors.crop_name = "Choose the crop you are growing.";
+    errors.crop_name = t("form.validation.cropRequired");
   } else if (cropName.length < 2) {
-    errors.crop_name = "Crop name is too short.";
+    errors.crop_name = t("form.validation.cropTooShort");
   }
 
   if (!state.sowing_date) {
-    errors.sowing_date = "Choose the sowing date.";
+    errors.sowing_date = t("form.validation.sowingDateRequired");
   } else {
     const sowing = new Date(state.sowing_date);
     const now = new Date();
     const oneYear = 365 * 24 * 60 * 60 * 1000;
     if (Number.isNaN(sowing.getTime())) {
-      errors.sowing_date = "That date is not valid.";
+      errors.sowing_date = t("form.validation.sowingDateInvalid");
     } else if (sowing.getTime() < now.getTime() - oneYear) {
-      errors.sowing_date = "Date is more than a year old. Please check it.";
+      errors.sowing_date = t("form.validation.sowingDateTooOld");
     } else if (sowing.getTime() > now.getTime() + oneYear) {
-      errors.sowing_date = "Date is more than a year ahead. Please check it.";
+      errors.sowing_date = t("form.validation.sowingDateTooFuture");
     }
   }
 
   return errors;
+}
+
+/** Only steps 1 and 2 block advancing - matches the prototype exactly. */
+function stepBlockingFields(step: WizardStep): string[] {
+  if (step === 1) return ["pincode", "land_size"];
+  if (step === 2) return ["crop_name", "sowing_date"];
+  return [];
 }
 
 interface Props {
@@ -183,9 +191,21 @@ interface Props {
   loading: boolean;
   /** Field errors returned by the backend's 422 handler. */
   serverFieldErrors?: Record<string, string>;
+  /** The last submit attempt's error message, if any (network/API failure). */
+  submitError?: string | null;
+  /** True once the parent has a real result - the wizard fully hides itself. */
+  hasResult: boolean;
 }
 
-export default function FarmInputForm({ onSubmit, loading, serverFieldErrors }: Props) {
+export default function FarmInputForm({
+  onSubmit,
+  loading,
+  serverFieldErrors,
+  submitError,
+  hasResult,
+}: Props) {
+  const { t, language } = useI18n();
+  const [step, setStep] = useState<WizardStep>(1);
   const [state, setState] = useState<FormState>(initialState);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState(false);
@@ -218,10 +238,12 @@ export default function FarmInputForm({ onSubmit, loading, serverFieldErrors }: 
     [errors, serverFieldErrors],
   );
 
+  if (hasResult) return null;
+
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setState((previous) => {
       const next = { ...previous, [key]: value };
-      if (touched) setErrors(validate(next));
+      if (touched) setErrors(validate(next, t));
       return next;
     });
   }
@@ -247,10 +269,9 @@ export default function FarmInputForm({ onSubmit, loading, serverFieldErrors }: 
     );
   }
 
-  // STEP 4 - crop photo health check (Part B). Never blocks the form: a
-  // failed, skipped, or unsupported-crop upload just leaves
-  // crop_health_score null, and the backend assumes a baseline health of
-  // 1.0 for it.
+  // Crop photo health check (Part B). Never blocks the wizard: a failed,
+  // skipped, or unsupported-crop upload just leaves crop_health_score null,
+  // and the backend assumes a baseline health of 1.0 for it.
   async function handlePhotoSelected(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -258,7 +279,7 @@ export default function FarmInputForm({ onSubmit, loading, serverFieldErrors }: 
     const cropName =
       state.crop_choice === OTHER_CROP ? state.crop_other.trim() : state.crop_choice.trim();
     if (!cropName) {
-      setPhotoNote("Choose your crop above first, so the photo check knows what to look for.");
+      setPhotoNote(t("form.photo.chooseCropFirst"));
       setPhotoStatus("done");
       return;
     }
@@ -270,21 +291,7 @@ export default function FarmInputForm({ onSubmit, loading, serverFieldErrors }: 
     setPhotoStatus("done");
   }
 
-  function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    setTouched(true);
-
-    const found = validate(state);
-    setErrors(found);
-    if (Object.keys(found).length > 0) {
-      // Move the farmer to the first thing that needs fixing.
-      document.querySelector<HTMLElement>("[data-field-error='true']")?.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
-      return;
-    }
-
+  function submitFarm() {
     const cropName =
       state.crop_choice === OTHER_CROP ? state.crop_other.trim() : state.crop_choice.trim();
 
@@ -315,273 +322,360 @@ export default function FarmInputForm({ onSubmit, loading, serverFieldErrors }: 
     });
   }
 
+  function goNext() {
+    setTouched(true);
+    const found = validate(state, t);
+    setErrors(found);
+
+    const blocked = stepBlockingFields(step).some((field) => found[field]);
+    if (blocked) {
+      document.querySelector<HTMLElement>("[data-field-error='true']")?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+      return;
+    }
+
+    if (step === 4) {
+      submitFarm();
+      return;
+    }
+    setStep((previous) => (Math.min(previous + 1, 4) as WizardStep));
+    document.getElementById("wizard-top")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function goBack() {
+    setStep((previous) => (Math.max(previous - 1, 1) as WizardStep));
+    document.getElementById("wizard-top")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   const errorFor = (field: string) => shownErrors[field];
 
+  const locationButtonText =
+    geoStatus === "loading"
+      ? t("form.locationButton.loading")
+      : geoStatus === "done"
+        ? `${t("form.locationButton.done")} (${state.latitude}, ${state.longitude})`
+        : geoStatus === "failed"
+          ? t("form.locationButton.failed")
+          : t("form.locationButton.idle");
+
+  const stepTitle = t(`wizard.step${step}.title`);
+  const stepSubtitle = t(`wizard.step${step}.subtitle`);
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-7" noValidate>
-      {/* ---------------- 1. Location ---------------- */}
-      <Field
-        label="PIN code of your village"
-        hint="अपने गाँव का पिन कोड"
-        required
-        error={errorFor("pincode")}
-      >
-        <input
-          data-testid="input-pincode"
-          className={`text-input ${errorFor("pincode") ? "text-input-error" : ""}`}
-          inputMode="numeric"
-          autoComplete="postal-code"
-          maxLength={6}
-          placeholder="e.g. 141001"
-          value={state.pincode}
-          onChange={(event) => set("pincode", event.target.value.replace(/\D/g, ""))}
-        />
-        <button
-          type="button"
-          onClick={requestLocation}
-          className="mt-2 text-base font-semibold text-crop-700 underline underline-offset-4"
-        >
-          {geoStatus === "loading" && "Finding your location…"}
-          {geoStatus === "done" && `📍 Location added (${state.latitude}, ${state.longitude})`}
-          {geoStatus === "failed" && "Could not get location — PIN code is enough"}
-          {geoStatus === "idle" && "📍 Or use my current location (optional)"}
-        </button>
-      </Field>
-
-      {/* ---------------- 2. Land size ---------------- */}
-      <Field
-        label="How much land?"
-        hint="कितनी ज़मीन है?"
-        required
-        error={errorFor("land_size")}
-      >
-        <input
-          data-testid="input-land-size"
-          className={`text-input ${errorFor("land_size") ? "text-input-error" : ""}`}
-          inputMode="decimal"
-          placeholder="e.g. 2.5"
-          value={state.land_size}
-          onChange={(event) => set("land_size", event.target.value.replace(/[^\d.]/g, ""))}
-        />
-        <div className="mt-3 grid grid-cols-4 gap-2">
-          {LAND_UNITS.map((unit) => (
-            <button
-              key={unit.value}
-              type="button"
-              onClick={() => set("land_unit", unit.value)}
-              className={`choice-chip flex-col !gap-0 ${
-                state.land_unit === unit.value ? "choice-chip-active" : ""
-              }`}
-            >
-              <span>{unit.label}</span>
-              <span className="text-xs font-normal opacity-70">{unit.hint}</span>
-            </button>
+    // Bottom padding reserves room for .step-nav's fixed-bottom bar on
+    // mobile (matches the prototype's `.app{padding:0 16px 100px}`) - removed
+    // once the nav goes static at 860px, so the last field of any step is
+    // never left sitting underneath the bar.
+    <div id="wizard-top" className="pb-24 min-[860px]:pb-0">
+      {/* ---------------- progress ---------------- */}
+      <div className="mb-4" data-testid="wizard-progress">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-sm font-bold" style={{ color: "var(--green-900)" }}>
+            {t("wizard.stepOf", { n: step })}
+          </span>
+        </div>
+        <div className="progress-track">
+          <div className="progress-fill" style={{ width: `${(Math.min(step, 4) / 4) * 100}%` }} />
+        </div>
+        <div className="mt-2.5 flex gap-1.5">
+          {[1, 2, 3, 4].map((dot) => (
+            <div key={dot} className={`step-dot ${dot < step ? "done" : ""}`} />
           ))}
         </div>
-      </Field>
+      </div>
 
-      {/* ---------------- 3. Crop ---------------- */}
-      <Field
-        label="Which crop?"
-        hint="कौन सी फसल?"
-        required
-        error={errorFor("crop_name")}
-      >
-        <select
-          data-testid="select-crop"
-          className={`text-input ${errorFor("crop_name") ? "text-input-error" : ""}`}
-          value={state.crop_choice}
-          onChange={(event) => set("crop_choice", event.target.value)}
-        >
-          <option value="">— Select a crop —</option>
-          {crops.map((crop) => (
-            <option key={crop.crop_name} value={crop.crop_name}>
-              {crop.crop_name}
-              {crop.local_name ? ` / ${crop.local_name}` : ""}
-            </option>
-          ))}
-          <option value={OTHER_CROP}>Other crop (type it myself)</option>
-        </select>
-
-        {state.crop_choice === OTHER_CROP && (
-          <input
-            className="text-input mt-3"
-            placeholder="Type the crop name"
-            value={state.crop_other}
-            onChange={(event) => set("crop_other", event.target.value)}
-          />
-        )}
-
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          {CROP_INTENTS.map((intent) => (
-            <button
-              key={intent.value}
-              type="button"
-              onClick={() => set("crop_intent", intent.value)}
-              className={`choice-chip ${
-                state.crop_intent === intent.value ? "choice-chip-active" : ""
-              }`}
-            >
-              <span aria-hidden>{intent.icon}</span>
-              <span className="flex flex-col items-start leading-tight">
-                <span>{intent.label}</span>
-                <span className="text-xs font-normal opacity-70">{intent.hint}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-      </Field>
-
-      {/* ---------------- 4. Sowing date ---------------- */}
-      <Field
-        label={state.crop_intent === "planned" ? "Planned sowing date" : "Sowing date"}
-        hint="बुवाई की तारीख"
-        required
-        error={errorFor("sowing_date")}
-      >
-        <input
-          type="date"
-          className={`text-input ${errorFor("sowing_date") ? "text-input-error" : ""}`}
-          value={state.sowing_date}
-          onChange={(event) => set("sowing_date", event.target.value)}
-        />
-      </Field>
-
-      {/* ---------------- 5. Irrigation ---------------- */}
-      <Field label="Where does your water come from?" hint="पानी कहाँ से आता है?" required>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {IRRIGATION_SOURCES.map((source) => (
-            <button
-              key={source.value}
-              type="button"
-              data-testid={`irrigation-${source.value}`}
-              onClick={() => set("irrigation_source", source.value)}
-              className={`choice-chip flex-col !gap-1 py-3 ${
-                state.irrigation_source === source.value ? "choice-chip-active" : ""
-              }`}
-            >
-              <span className="text-2xl" aria-hidden>
-                {source.icon}
-              </span>
-              <span className="text-sm leading-tight">{source.label}</span>
-              <span className="text-xs font-normal opacity-70">{source.hint}</span>
-            </button>
-          ))}
-        </div>
-      </Field>
-
-      {/* ---------------- 6. Soil test ---------------- */}
-      <Field label="Do you have a soil test report?" hint="क्या मिट्टी जाँच रिपोर्ट है?">
-        <div className="grid grid-cols-2 gap-2">
+      {/* ---------------- step card ---------------- */}
+      <div className="wizard-card" data-testid="wizard-step" data-step={step} key={step}>
+        <div className="mb-4 flex items-start justify-between gap-2.5">
+          <div>
+            <p className="m-0 mb-1 text-lg font-extrabold text-soil-900">{stepTitle}</p>
+            <p className="m-0 text-sm text-soil-700">{stepSubtitle}</p>
+          </div>
           <button
             type="button"
-            data-testid="soil-test-yes"
-            onClick={() => set("soil_test_available", true)}
-            className={`choice-chip ${state.soil_test_available ? "choice-chip-active" : ""}`}
+            className="voice-btn"
+            aria-label={t("wizard.voiceReadAria")}
+            onClick={() => speak(`${stepTitle}. ${stepSubtitle}`, language)}
           >
-            ✅ Yes / हाँ
-          </button>
-          <button
-            type="button"
-            data-testid="soil-test-no"
-            onClick={() => set("soil_test_available", false)}
-            className={`choice-chip ${!state.soil_test_available ? "choice-chip-active" : ""}`}
-          >
-            ❌ No / नहीं
+            🔊
           </button>
         </div>
-        {state.soil_test_available && (
+
+        {step === 1 && (
           <>
-            <input
-              className="text-input mt-3"
-              placeholder="Soil Health Card number (optional)"
-              value={state.soil_health_card_id}
-              onChange={(event) => set("soil_health_card_id", event.target.value)}
-            />
+            <Field label={t("form.pincode.label")} required error={errorFor("pincode")}>
+              <input
+                data-testid="input-pincode"
+                className={`text-input ${errorFor("pincode") ? "text-input-error" : ""}`}
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={6}
+                placeholder={t("form.pincode.placeholder")}
+                value={state.pincode}
+                onChange={(event) => set("pincode", event.target.value.replace(/\D/g, ""))}
+              />
+              <button
+                type="button"
+                onClick={requestLocation}
+                className="mt-2 text-base font-semibold text-crop-700 underline underline-offset-4"
+              >
+                {locationButtonText}
+              </button>
+            </Field>
 
-            {/* Part B: manual N/P/K/pH/organic carbon. All optional - any
-                left blank fall back to the Soil Health Card / district
-                average server-side (see feature_resolver.py). */}
-            <div className="mt-3 rounded-xl bg-soil-50 p-3">
-              <p className="text-sm font-semibold text-soil-700">
-                If you know your soil test numbers, enter them (optional) / मिट्टी जाँच के आंकड़े (वैकल्पिक)
-              </p>
-              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                <NumberField testId="input-soil-n" label="N (kg/ha)" value={state.soil_test_n} onChange={(v) => set("soil_test_n", v)} />
-                <NumberField testId="input-soil-p" label="P (kg/ha)" value={state.soil_test_p} onChange={(v) => set("soil_test_p", v)} />
-                <NumberField testId="input-soil-k" label="K (kg/ha)" value={state.soil_test_k} onChange={(v) => set("soil_test_k", v)} />
-                <NumberField testId="input-soil-ph" label="pH" value={state.soil_test_ph} onChange={(v) => set("soil_test_ph", v)} />
-                <NumberField
-                  testId="input-soil-oc"
-                  label="Organic carbon (%)"
-                  value={state.soil_test_organic_carbon}
-                  onChange={(v) => set("soil_test_organic_carbon", v)}
-                />
+            <Field label={t("form.landSize.label")} required error={errorFor("land_size")}>
+              <input
+                data-testid="input-land-size"
+                className={`text-input ${errorFor("land_size") ? "text-input-error" : ""}`}
+                inputMode="decimal"
+                autoComplete="off"
+                placeholder={t("form.landSize.placeholder")}
+                value={state.land_size}
+                onChange={(event) => set("land_size", event.target.value.replace(/[^\d.]/g, ""))}
+              />
+              <div className="mt-3 grid grid-cols-4 gap-2">
+                {LAND_UNIT_VALUES.map((unit) => (
+                  <button
+                    key={unit}
+                    type="button"
+                    onClick={() => set("land_unit", unit)}
+                    className={`card-btn !min-h-[2.75rem] flex-row ${
+                      state.land_unit === unit ? "selected" : ""
+                    }`}
+                  >
+                    <span className="label">{t(`form.landUnit.${unit}`)}</span>
+                  </button>
+                ))}
               </div>
-            </div>
+            </Field>
           </>
         )}
-      </Field>
 
-      {/* ---------------- 6b. Crop photo (Part B, optional) ---------------- */}
-      <Field
-        label="Photo of your crop (optional)"
-        hint="फसल की फोटो — ज़रूरी नहीं, इससे सलाह बेहतर होगी"
-      >
-        <p className="mb-2 text-sm text-soil-700">
-          Disease check currently works for Corn, Potato and Soybean only — other crops still
-          get a photo-free advice baseline.
-          <span className="block">अभी यह जाँच सिर्फ मक्का, आलू और सोयाबीन के लिए काम करती है।</span>
-        </p>
-        <input
-          type="file"
-          data-testid="input-crop-photo"
-          accept="image/*"
-          capture="environment"
-          className="text-input"
-          onChange={handlePhotoSelected}
-        />
-        {photoStatus === "uploading" && (
-          <p data-testid="photo-status-uploading" className="mt-2 text-base text-soil-700">Checking your photo…</p>
-        )}
-        {photoStatus === "done" && (
-          <p data-testid="photo-status-done" className="mt-2 text-base text-crop-700">✅ {photoNote}</p>
-        )}
-      </Field>
+        {step === 2 && (
+          <>
+            <Field label={t("form.crop.label")} required error={errorFor("crop_name")}>
+              <select
+                data-testid="select-crop"
+                className={`text-input ${errorFor("crop_name") ? "text-input-error" : ""}`}
+                value={state.crop_choice}
+                onChange={(event) => set("crop_choice", event.target.value)}
+              >
+                <option value="">{t("form.crop.selectPlaceholder")}</option>
+                {crops.map((crop) => (
+                  <option key={crop.crop_name} value={crop.crop_name}>
+                    {crop.crop_name}
+                    {crop.local_name ? ` / ${crop.local_name}` : ""}
+                  </option>
+                ))}
+                <option value={OTHER_CROP}>{t("form.crop.otherOption")}</option>
+              </select>
 
-      {/* ---------------- 7. Optional details ---------------- */}
-      <details className="rounded-xl border-2 border-soil-100 bg-white px-4 py-3">
-        <summary className="cursor-pointer text-lg font-semibold">
-          Your name and village (optional)
-          <span className="field-hint">नाम और गाँव — ज़रूरी नहीं</span>
-        </summary>
-        <div className="mt-4 space-y-4">
-          <input
-            className="text-input"
-            placeholder="Your name"
-            value={state.farmer_name}
-            onChange={(event) => set("farmer_name", event.target.value)}
-          />
-          <input
-            className="text-input"
-            placeholder="Village name"
-            value={state.village}
-            onChange={(event) => set("village", event.target.value)}
-          />
+              {state.crop_choice === OTHER_CROP && (
+                <input
+                  className="text-input mt-3"
+                  autoComplete="off"
+                  placeholder={t("form.crop.otherPlaceholder")}
+                  value={state.crop_other}
+                  onChange={(event) => set("crop_other", event.target.value)}
+                />
+              )}
+            </Field>
+
+            <Field label={t("form.cropIntent.label")}>
+              <div className="grid grid-cols-2 gap-2">
+                {CROP_INTENT_VALUES.map((intent) => (
+                  <button
+                    key={intent.value}
+                    type="button"
+                    onClick={() => set("crop_intent", intent.value)}
+                    className={`card-btn ${state.crop_intent === intent.value ? "selected" : ""}`}
+                  >
+                    <span className="ico" aria-hidden>
+                      {intent.icon}
+                    </span>
+                    <span className="label">{t(`form.cropIntent.${intent.value}`)}</span>
+                  </button>
+                ))}
+              </div>
+            </Field>
+
+            <Field
+              label={
+                state.crop_intent === "planned"
+                  ? t("form.sowingDate.labelPlanned")
+                  : t("form.sowingDate.label")
+              }
+              required
+              error={errorFor("sowing_date")}
+            >
+              <input
+                type="date"
+                className={`text-input ${errorFor("sowing_date") ? "text-input-error" : ""}`}
+                value={state.sowing_date}
+                onChange={(event) => set("sowing_date", event.target.value)}
+              />
+            </Field>
+          </>
+        )}
+
+        {step === 3 && (
+          <>
+            <Field label={t("form.irrigationSource.label")} required>
+              {/* Matches the prototype exactly: 3 columns by default, only
+                  dropping to 2 under 360px - not the other way around. */}
+              <div className="grid grid-cols-3 gap-2 max-[359px]:grid-cols-2">
+                {IRRIGATION_SOURCE_VALUES.map((source) => (
+                  <button
+                    key={source.value}
+                    type="button"
+                    data-testid={`irrigation-${source.value}`}
+                    onClick={() => set("irrigation_source", source.value)}
+                    className={`card-btn ${
+                      state.irrigation_source === source.value ? "selected" : ""
+                    }`}
+                  >
+                    <span className="ico" aria-hidden>
+                      {source.icon}
+                    </span>
+                    <span className="label">{t(`form.irrigationSource.${source.value}`)}</span>
+                  </button>
+                ))}
+              </div>
+            </Field>
+
+            <Field label={t("form.soilTest.label")}>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  data-testid="soil-test-yes"
+                  onClick={() => set("soil_test_available", true)}
+                  className={`card-btn flex-row !gap-2 ${state.soil_test_available ? "selected" : ""}`}
+                >
+                  <span className="label">{t("form.soilTest.yes")}</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="soil-test-no"
+                  onClick={() => set("soil_test_available", false)}
+                  className={`card-btn flex-row !gap-2 ${!state.soil_test_available ? "selected" : ""}`}
+                >
+                  <span className="label">{t("form.soilTest.no")}</span>
+                </button>
+              </div>
+              {state.soil_test_available && (
+                <div id="soilFields">
+                  <input
+                    className="text-input mt-3"
+                    autoComplete="off"
+                    placeholder={t("form.soilTest.cardIdPlaceholder")}
+                    value={state.soil_health_card_id}
+                    onChange={(event) => set("soil_health_card_id", event.target.value)}
+                  />
+
+                  {/* Part B: manual N/P/K/pH/organic carbon. All optional -
+                      any left blank fall back to the Soil Health Card /
+                      district average server-side (see feature_resolver.py). */}
+                  <div className="mt-3 rounded-xl bg-soil-50 p-3">
+                    <p className="text-sm font-semibold text-soil-700">{t("form.soilTest.numbersIntro")}</p>
+                    {/* Prototype keeps this grid at a fixed 2 columns regardless of width. */}
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <NumberField testId="input-soil-n" label={t("form.soilTest.n")} value={state.soil_test_n} onChange={(v) => set("soil_test_n", v)} />
+                      <NumberField testId="input-soil-p" label={t("form.soilTest.p")} value={state.soil_test_p} onChange={(v) => set("soil_test_p", v)} />
+                      <NumberField testId="input-soil-k" label={t("form.soilTest.k")} value={state.soil_test_k} onChange={(v) => set("soil_test_k", v)} />
+                      <NumberField testId="input-soil-ph" label={t("form.soilTest.ph")} value={state.soil_test_ph} onChange={(v) => set("soil_test_ph", v)} />
+                      <NumberField
+                        testId="input-soil-oc"
+                        label={t("form.soilTest.organicCarbon")}
+                        value={state.soil_test_organic_carbon}
+                        onChange={(v) => set("soil_test_organic_carbon", v)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </Field>
+          </>
+        )}
+
+        {step === 4 && (
+          <>
+            <Field label={t("form.photo.label")}>
+              <p className="helper-note">{t("form.photo.supportedCropsNote")}</p>
+              <label className="file-drop mt-2 block" htmlFor="crop-photo-input">
+                <span className="ico block" aria-hidden>📷</span>
+                <span className="block font-bold text-crop-700">{t("form.photo.tapToChoose")}</span>
+              </label>
+              <input
+                type="file"
+                id="crop-photo-input"
+                data-testid="input-crop-photo"
+                accept="image/*"
+                capture="environment"
+                className="sr-only"
+                onChange={handlePhotoSelected}
+              />
+              {photoStatus === "uploading" && (
+                <p data-testid="photo-status-uploading" className="mt-2 text-base text-soil-700">{t("form.photo.uploading")}</p>
+              )}
+              {photoStatus === "done" && (
+                <p data-testid="photo-status-done" className="mt-2 text-base text-crop-700">✅ {photoNote}</p>
+              )}
+            </Field>
+
+            <details className="collapse">
+              <summary>
+                <span>{t("form.optionalDetails.summary")}</span>
+                <span aria-hidden>▾</span>
+              </summary>
+              <div className="inner space-y-3">
+                <input
+                  className="text-input"
+                  autoComplete="off"
+                  placeholder={t("form.optionalDetails.namePlaceholder")}
+                  value={state.farmer_name}
+                  onChange={(event) => set("farmer_name", event.target.value)}
+                />
+                <input
+                  className="text-input"
+                  autoComplete="off"
+                  placeholder={t("form.optionalDetails.villagePlaceholder")}
+                  value={state.village}
+                  onChange={(event) => set("village", event.target.value)}
+                />
+              </div>
+            </details>
+
+            {submitError && (
+              <p className="error-text mt-3" role="alert">
+                {submitError}
+              </p>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ---------------- nav ---------------- */}
+      <nav className="step-nav mt-5">
+        <div className="mx-auto flex max-w-[640px] gap-2.5 lg:max-w-none">
+          {step > 1 && (
+            <button type="button" data-testid="wizard-back" onClick={goBack} className="btn-secondary">
+              {t("wizard.back")}
+            </button>
+          )}
+          <button
+            type="button"
+            data-testid={step === 4 ? "submit-farm-form" : "wizard-next"}
+            onClick={goNext}
+            disabled={loading}
+            className="btn-primary"
+          >
+            {step === 4 ? (loading ? t("form.submit.loading") : t("form.submit.idle")) : t("wizard.next")}
+          </button>
         </div>
-      </details>
-
-      <button
-        type="submit"
-        data-testid="submit-farm-form"
-        disabled={loading}
-        className="touch-target w-full rounded-2xl bg-crop-600 py-4 text-xl font-bold text-white
-                   shadow-lg transition hover:bg-crop-700 disabled:cursor-not-allowed disabled:bg-soil-100
-                   disabled:text-soil-700"
-      >
-        {loading ? "Checking your farm…" : "Get my farm advice / सलाह देखें"}
-      </button>
-    </form>
+      </nav>
+    </div>
   );
 }
 
@@ -605,6 +699,7 @@ function NumberField({
         data-testid={testId}
         className="text-input mt-1 !py-2 !text-base"
         inputMode="decimal"
+        autoComplete="off"
         placeholder="—"
         value={value}
         onChange={(event) => onChange(event.target.value.replace(/[^\d.]/g, ""))}
@@ -615,27 +710,26 @@ function NumberField({
 
 function Field({
   label,
-  hint,
   required,
   error,
   children,
 }: {
-  label: string;
-  hint?: string;
+  label?: string;
   required?: boolean;
   error?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div data-field-error={error ? "true" : "false"}>
-      <label className="field-label">
-        {label}
-        {required && <span className="ml-1 text-red-600">*</span>}
-        {hint && <span className="field-hint">{hint}</span>}
-      </label>
+    <div className="field-group mb-5" data-field-error={error ? "true" : "false"}>
+      {label && (
+        <label className="field-label">
+          {label}
+          {required && <span className="ml-1 text-danger">*</span>}
+        </label>
+      )}
       <div className="mt-2">{children}</div>
       {error && (
-        <p className="mt-2 flex items-start gap-2 text-base font-semibold text-red-700">
+        <p className="error-text flex items-start gap-2">
           <span aria-hidden>⚠️</span>
           <span>{error}</span>
         </p>

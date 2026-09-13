@@ -2,13 +2,102 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Design tokens ported from kisan-sathi-frontend.html (the approved
+ * design/interaction prototype). tailwind.config.ts points its soil/crop/
+ * marigold/sky/danger color keys at these variables, so every existing
+ * component re-themes for free - no component files need their className
+ * strings touched for the palette or dark-mode swap to take effect.
+ *
+ * data-theme is toggled by ThemeContext (see lib/theme/ThemeContext.tsx)
+ * and persisted, not just derived from prefers-color-scheme - the 3-dot
+ * menu's "Day / night mode" item is an explicit user choice, not a
+ * system-follow toggle.
+ */
+:root {
+  color-scheme: light;
+  --bg: #eff4ea;
+  --surface: #ffffff;
+  --surface-2: #f7faf3;
+  --ink: #20301f;
+  --ink-soft: #4c5b48;
+  --line: #dce5d4;
+  --green-900: #1f4d36;
+  --green-700: #2f7a4f;
+  --green-600: #3b8f5c;
+  --green-100: #dceee1;
+  --marigold: #e8a33d;
+  --marigold-ink: #6b4408;
+  --marigold-100: #fbebd1;
+  --sky: #2e86ab;
+  --sky-100: #dceef5;
+  --danger: #c1443c;
+  --danger-100: #f8dedc;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #101a13;
+  --surface: #17241a;
+  --surface-2: #1d2b20;
+  --ink: #eaf2e5;
+  --ink-soft: #afc2a9;
+  --line: #2a3b2c;
+  --green-900: #8fdcae;
+  --green-700: #4caf6d;
+  --green-600: #5dbe7c;
+  --green-100: #22392a;
+  --marigold: #e3a94a;
+  --marigold-ink: #f6ddae;
+  --marigold-100: #3a2e14;
+  --sky: #6bb6d6;
+  --sky-100: #16303b;
+  --danger: #e28880;
+  --danger-100: #3a1f1d;
+}
+
+/* Without this, a component that both sets its own `display` AND uses the
+   `hidden` attribute (e.g. a modal) can stay interactive/click-blocking
+   even while "hidden" - a real bug we hit once in the prototype. */
+[hidden] {
+  display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
   }
 
   body {
-    @apply bg-soil-50 text-soil-900 antialiased;
+    @apply text-soil-900 antialiased font-sans;
+    /* Page background is --bg, distinct from --surface-2 (soil-50's usual
+       role as a subtle card/tile fill elsewhere) - kept as a direct
+       declaration rather than overloading the soil-50 token's meaning. */
+    background: var(--bg);
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+
+  h1, h2, h3, .brand-name, .btn-primary, .card-btn .label {
+    @apply font-heading;
+  }
+  button {
+    font-family: inherit;
+  }
+
+  button, input, select {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  ::selection {
+    background: var(--green-100);
+    color: var(--green-900);
   }
 
   /* Large, obvious focus ring - important for low-literacy users who
@@ -33,22 +122,200 @@
   }
 
   .text-input {
-    @apply w-full rounded-xl border-2 border-soil-100 bg-white px-4 py-3 text-lg
+    @apply w-full rounded-xl border-2 border-soil-100 bg-surface px-4 py-3 text-lg
            text-soil-900 shadow-sm transition
            focus:border-crop-500 focus:outline-none;
   }
 
   .text-input-error {
-    @apply border-red-500 bg-red-50;
+    @apply border-danger bg-danger-100;
   }
 
   .choice-chip {
     @apply flex min-h-[3.25rem] items-center justify-center gap-2 rounded-xl border-2
-           border-soil-100 bg-white px-3 py-2 text-base font-semibold text-soil-900
+           border-soil-100 bg-surface px-3 py-2 text-base font-semibold text-soil-900
            transition hover:border-crop-500;
   }
 
   .choice-chip-active {
     @apply border-crop-600 bg-crop-50 text-crop-700 shadow-sm;
+  }
+
+  /* ---- ported from kisan-sathi-frontend.html: wizard chrome ---- */
+
+  .pill-btn {
+    @apply flex h-[38px] items-center gap-1.5 rounded-full border-[1.5px] px-3
+           text-sm font-bold;
+    border-color: var(--line);
+    background: var(--surface);
+    color: var(--ink);
+  }
+  @media (hover: hover) {
+    .pill-btn:hover {
+      background: var(--surface-2);
+    }
+  }
+
+  .icon-btn {
+    @apply flex h-[38px] w-[38px] items-center justify-center rounded-full
+           border-[1.5px] text-lg;
+    border-color: var(--line);
+    background: var(--surface);
+    color: var(--ink);
+  }
+  @media (hover: hover) {
+    .icon-btn:hover {
+      background: var(--surface-2);
+    }
+  }
+
+  .card-btn {
+    @apply flex min-h-[92px] flex-col items-center justify-center gap-2 rounded-2xl
+           border-[1.5px] px-1.5 py-3 text-center;
+    border-color: var(--line);
+    background: var(--surface-2);
+    transition: transform 0.1s ease, border-color 0.15s ease, background 0.15s ease;
+  }
+  .card-btn:active {
+    transform: scale(0.96);
+  }
+  @media (hover: hover) {
+    .card-btn:hover {
+      border-color: var(--green-600);
+    }
+  }
+  .card-btn.selected,
+  .card-btn[aria-pressed="true"] {
+    border-color: var(--green-700);
+    background: var(--green-100);
+  }
+  .card-btn .ico {
+    @apply text-2xl;
+  }
+  .card-btn .label {
+    @apply text-sm font-bold;
+    color: var(--ink);
+  }
+  .card-btn.selected .label,
+  .card-btn[aria-pressed="true"] .label {
+    color: var(--green-900);
+  }
+
+  .wizard-card {
+    @apply rounded-[18px] border p-5;
+    border-color: var(--line);
+    background: var(--surface);
+    box-shadow: 0 1px 2px rgba(32, 48, 31, 0.06);
+    animation: stepIn 0.22s ease;
+  }
+  @keyframes stepIn {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    @apply flex-1 rounded-2xl text-base font-bold;
+    height: 52px;
+    transition: transform 0.08s ease, background 0.15s ease;
+  }
+  .btn-primary:active,
+  .btn-secondary:active {
+    transform: scale(0.98);
+  }
+  .btn-primary {
+    background: var(--green-700);
+    color: #fff;
+  }
+  .btn-primary:disabled {
+    opacity: 0.6;
+  }
+  @media (hover: hover) {
+    .btn-primary:hover:not(:disabled) {
+      background: var(--green-900);
+    }
+  }
+  .btn-secondary {
+    @apply flex-none border-[1.5px];
+    width: 110px;
+    background: var(--surface-2);
+    border-color: var(--line);
+    color: var(--ink);
+  }
+
+  .error-text {
+    @apply mt-1.5 text-sm font-semibold;
+    color: var(--danger);
+  }
+
+  .helper-note {
+    @apply mt-1.5 rounded-[10px] px-3 py-2.5 text-sm leading-relaxed;
+    color: var(--marigold-ink);
+    background: var(--marigold-100);
+  }
+
+  .voice-btn {
+    @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-[1.5px] text-lg;
+    border-color: var(--sky);
+    background: var(--sky-100);
+    color: var(--sky);
+  }
+
+  .file-drop {
+    @apply cursor-pointer rounded-xl border-[1.5px] border-dashed p-[18px] text-center;
+    border-color: var(--line);
+    background: var(--surface-2);
+  }
+
+  .modal-backdrop {
+    @apply fixed inset-0 z-[100] flex items-end justify-center p-0 sm:items-center;
+    background: rgba(16, 26, 19, 0.5);
+  }
+  .modal {
+    @apply w-full max-w-[420px] rounded-t-[20px] px-5 pb-6 pt-[22px] sm:rounded-[20px];
+    background: var(--surface);
+  }
+
+  .progress-track {
+    @apply h-2 overflow-hidden rounded-full;
+    background: var(--line);
+  }
+  .progress-fill {
+    @apply h-full rounded-full;
+    background: var(--green-700);
+    transition: width 0.3s ease;
+  }
+  .step-dot {
+    @apply h-1 flex-1 rounded-full;
+    background: var(--line);
+  }
+  .step-dot.done {
+    background: var(--green-700);
+  }
+
+  /* Ported verbatim from kisan-sathi-frontend.html: fixed-bottom nav bar on
+     mobile (thumb reach), becomes an inline static bar once the desktop
+     two-column layout has room for it (>= 860px, the prototype's own
+     breakpoint - distinct from Tailwind's `lg:` used elsewhere on this
+     page, since this nav needs to switch behavior on its own schedule). */
+  .step-nav {
+    @apply fixed inset-x-0 bottom-0 z-40;
+    background: var(--surface);
+    border-top: 1px solid var(--line);
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  }
+  @media (min-width: 860px) {
+    .step-nav {
+      position: static;
+      background: none;
+      border: none;
+      padding: 20px 0 0;
+    }
   }
 }

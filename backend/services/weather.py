@@ -70,7 +70,7 @@ def _fetch_open_meteo(lat: float, lon: float) -> dict[str, Any]:
         "forecast_days": FORECAST_DAYS_REQUEST,
     }
     url = f"{OPEN_METEO_URL}?{urllib.parse.urlencode(params)}"
-    request = urllib.request.Request(url, headers={"User-Agent": "kisan-sathi/1.0"})
+    request = urllib.request.Request(url, headers={"User-Agent": "kisan-mitra/1.0"})
     with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
         return json.loads(response.read())
 

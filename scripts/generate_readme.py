@@ -40,6 +40,11 @@ EXCLUDE_NAMES = {
     "subset_small",
     "visual_checks",
     ".DS_Store",
+    # Runtime SQLite DB (users/sessions/family members, see
+    # backend/services/auth.py) - created only once the app runs, holds
+    # real user phone numbers, gitignored. Doesn't exist on a fresh clone,
+    # so it shouldn't appear in this structure diagram either.
+    "app.sqlite3",
 }
 EXCLUDE_SUFFIXES = {".pyc", ".pyo", ".tsbuildinfo"}
 

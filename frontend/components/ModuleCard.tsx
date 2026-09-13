@@ -11,29 +11,30 @@
 
 import type { ModuleResponse, ModuleStatus } from "@/lib/types";
 import ModuleDetails from "./ModuleDetails";
+import { useI18n } from "@/lib/i18n/I18nContext";
 
-const MODULE_META: Record<string, { icon: string; title: string; hint: string }> = {
-  soil_status: { icon: "🧪", title: "Soil health", hint: "मिट्टी की सेहत" },
-  irrigation_advice: { icon: "💧", title: "Water & irrigation", hint: "सिंचाई" },
-  crop_recommendation: { icon: "🌾", title: "What to grow next", hint: "अगली फसल" },
-  rotation_suggestion: { icon: "🔄", title: "Crop rotation plan", hint: "फसल चक्र" },
-  aggregator: { icon: "📋", title: "Farm details", hint: "खेत की जानकारी" },
+const MODULE_ICON: Record<string, string> = {
+  soil_status: "🧪",
+  irrigation_advice: "💧",
+  crop_recommendation: "🌾",
+  rotation_suggestion: "🔄",
+  aggregator: "📋",
   // --- Part B: Regenerative Intelligence Engine ---
-  rotation: { icon: "🔄", title: "Rotation advisor", hint: "फसल चक्र सलाह" },
-  soil_health: { icon: "🌱", title: "Soil carbon & health", hint: "मिट्टी कार्बन" },
-  fertilizer: { icon: "🧪", title: "Fertiliser reducer", hint: "खाद घटाएँ" },
-  cover_cropping: { icon: "🍃", title: "Cover cropping", hint: "कवर फसल" },
-  irrigation_efficiency: { icon: "💧", title: "Water-use efficiency", hint: "जल दक्षता" },
+  rotation: "🔄",
+  soil_health: "🌱",
+  fertilizer: "🧪",
+  cover_cropping: "🍃",
+  irrigation_efficiency: "💧",
 };
 
-const STATUS_META: Record<ModuleStatus, { label: string; className: string; icon: string }> = {
-  ok: { label: "Ready", className: "bg-crop-100 text-crop-700", icon: "✅" },
+const STATUS_META: Record<ModuleStatus, { key: string; className: string; icon: string }> = {
+  ok: { key: "ok", className: "bg-crop-100 text-crop-700", icon: "✅" },
   partial: {
-    label: "Some data missing",
+    key: "partial",
     className: "bg-amber-100 text-amber-900",
     icon: "⚠️",
   },
-  error: { label: "Not available", className: "bg-red-100 text-red-900", icon: "❌" },
+  error: { key: "error", className: "bg-red-100 text-red-900", icon: "❌" },
 };
 
 function titleise(moduleName: string): string {
@@ -41,37 +42,32 @@ function titleise(moduleName: string): string {
 }
 
 export default function ModuleCard({ response }: { response: ModuleResponse<any> }) {
-  const meta = MODULE_META[response.module_name] ?? {
-    icon: "📦",
-    title: titleise(response.module_name),
-    hint: "",
-  };
+  const { t } = useI18n();
+  const icon = MODULE_ICON[response.module_name] ?? "📦";
+  const titleKey = `moduleCard.titles.${response.module_name}`;
+  const translatedTitle = t(titleKey);
+  const title = translatedTitle === titleKey ? titleise(response.module_name) : translatedTitle;
   const status = STATUS_META[response.status] ?? STATUS_META.error;
   const isDummy = (response.details as { is_dummy_data?: boolean })?.is_dummy_data;
 
   return (
     <section
       data-testid={`module-card-${response.module_name}`}
-      className="flex flex-col rounded-2xl border-2 border-soil-100 bg-white p-5 shadow-sm"
+      className="flex flex-col rounded-2xl border-2 border-soil-100 bg-surface p-5 shadow-sm"
     >
       {/* ---- envelope: title + status ---- */}
       <header className="flex items-start justify-between gap-3">
         <h3 className="flex items-center gap-3 text-2xl font-bold leading-tight">
           <span aria-hidden className="text-3xl">
-            {meta.icon}
+            {icon}
           </span>
-          <span>
-            {meta.title}
-            {meta.hint && (
-              <span className="block text-sm font-normal text-soil-700">{meta.hint}</span>
-            )}
-          </span>
+          <span>{title}</span>
         </h3>
         <span
           className={`shrink-0 rounded-full px-3 py-1 text-sm font-bold ${status.className}`}
           title={`status: ${response.status}`}
         >
-          <span aria-hidden>{status.icon}</span> {status.label}
+          <span aria-hidden>{status.icon}</span> {t(`moduleCard.status.${status.key}`)}
         </span>
       </header>
 
@@ -82,7 +78,7 @@ export default function ModuleCard({ response }: { response: ModuleResponse<any>
       {response.confidence != null && (
         <div className="mt-3">
           <div className="flex items-center justify-between text-sm font-semibold text-soil-700">
-            <span>How sure are we?</span>
+            <span>{t("moduleCard.howSure")}</span>
             <span>{Math.round(response.confidence * 100)}%</span>
           </div>
           <div className="mt-1 h-2 overflow-hidden rounded-full bg-soil-100">
@@ -99,7 +95,7 @@ export default function ModuleCard({ response }: { response: ModuleResponse<any>
         {response.status === "error" ? (
           <p className="text-base text-soil-700">
             {(response.details as { error_message?: string })?.error_message ??
-              "Please try again in a moment."}
+              t("moduleCard.tryAgain")}
           </p>
         ) : (
           <ModuleDetails response={response} />
@@ -113,7 +109,7 @@ export default function ModuleCard({ response }: { response: ModuleResponse<any>
               details.is_dummy_data = false. */}
           {isDummy && (
             <span className="mr-2 rounded bg-amber-100 px-2 py-0.5 font-bold text-amber-900">
-              DEMO DATA
+              {t("moduleCard.demoDataBadge")}
             </span>
           )}
           <code>{response.module_name}</code>

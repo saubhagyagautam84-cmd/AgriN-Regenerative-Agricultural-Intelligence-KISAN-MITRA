@@ -1,7 +1,7 @@
 import { defineConfig } from "@playwright/test";
 
 /**
- * Visual verification config for the Kisan Sathi dashboard (Part A + Part B).
+ * Visual verification config for the Kisan Mitra dashboard (Part A + Part B).
  *
  * Assumes the backend (port 8001) and frontend dev server (port 3000) are
  * ALREADY running - this does not start them, so it can be wired into the

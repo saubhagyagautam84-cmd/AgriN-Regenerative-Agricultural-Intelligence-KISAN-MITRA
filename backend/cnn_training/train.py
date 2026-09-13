@@ -1,5 +1,5 @@
 """
-Kisan Sathi - Crop Health CNN, adapted from the provided Colab notebook for
+Kisan Mitra - Crop Health CNN, adapted from the provided Colab notebook for
 LOCAL execution (no GPU, Python 3.11 + TensorFlow 2.15 in this isolated
 backend/cnn_training/.venv - the main backend runs Python 3.14, which has no
 TensorFlow wheel yet, hence the separate environment).
@@ -7,7 +7,7 @@ TensorFlow wheel yet, hence the separate environment).
 Deviations from the original notebook, and why:
   * No `!pip install` / Colab magics - this runs as a plain script.
   * TARGET_CROPS narrowed to ["Corn", "Potato", "Soybean"] - the only 3 of
-    Kisan Sathi's 18 crops that actually exist in PlantVillage's 14 species
+    Kisan Mitra's 18 crops that actually exist in PlantVillage's 14 species
     (Wheat, Rice, Cotton, Sugarcane, Mustard, Chickpea, Groundnut, Pearl
     Millet, Lentil, Pigeon Pea, Green Gram, Black Gram, Sorghum, Barley,
     Sunflower have no PlantVillage data at all).

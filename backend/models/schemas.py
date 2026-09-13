@@ -514,3 +514,35 @@ class CropHealthCheckResponse(BaseModel):
     label: str
     is_placeholder: bool
     note: str
+
+
+# --------------------------------------------------------------------------
+# Auth + family members - see services/auth.py
+# --------------------------------------------------------------------------
+
+
+class AuthVerifyRequest(BaseModel):
+    """Body of POST /api/auth/verify - a Firebase Phone Auth ID token."""
+
+    id_token: str
+
+
+class AuthVerifyResponse(BaseModel):
+    session_token: str
+    phone: str
+
+
+class AuthMeResponse(BaseModel):
+    phone: str
+
+
+class FamilyMemberIn(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    phone: Optional[str] = Field(None, max_length=20)
+
+
+class FamilyMemberOut(BaseModel):
+    id: int
+    name: str
+    phone: Optional[str]
+    created_at: int

@@ -25,18 +25,18 @@ import type {
   RotationDetails,
   SoilStatusDetails,
 } from "@/lib/types";
+import { useI18n } from "@/lib/i18n/I18nContext";
 
 // --------------------------------------------------------------------------
 // Shared bits
 // --------------------------------------------------------------------------
 
 export function ActionList({ actions }: { actions: string[] }) {
+  const { t } = useI18n();
   if (!actions?.length) return null;
   return (
     <div className="mt-5 rounded-xl bg-crop-50 p-4">
-      <h4 className="text-base font-bold text-crop-700">
-        What to do / क्या करें
-      </h4>
+      <h4 className="text-base font-bold text-crop-700">{t("moduleDetails.whatToDo")}</h4>
       <ul className="mt-2 space-y-2">
         {actions.map((action, index) => (
           <li key={index} className="flex gap-2 text-lg leading-snug">
@@ -63,13 +63,14 @@ function Stat({ label, value, unit }: { label: string; value: string | number; u
   );
 }
 
-const RATING_STYLES: Record<string, { bar: string; chip: string; label: string }> = {
-  low: { bar: "bg-red-500", chip: "bg-red-100 text-red-800", label: "Low" },
-  medium: { bar: "bg-amber-500", chip: "bg-amber-100 text-amber-900", label: "OK" },
-  high: { bar: "bg-crop-500", chip: "bg-crop-100 text-crop-700", label: "High" },
+const RATING_STYLES: Record<string, { bar: string; chip: string; key: string }> = {
+  low: { bar: "bg-red-500", chip: "bg-red-100 text-red-800", key: "low" },
+  medium: { bar: "bg-amber-500", chip: "bg-amber-100 text-amber-900", key: "medium" },
+  high: { bar: "bg-crop-500", chip: "bg-crop-100 text-crop-700", key: "high" },
 };
 
 function NutrientRow({ nutrient }: { nutrient: NutrientReading }) {
+  const { t } = useI18n();
   const rating = nutrient.rating ?? "medium";
   const style = RATING_STYLES[rating] ?? RATING_STYLES.medium;
 
@@ -90,8 +91,7 @@ function NutrientRow({ nutrient }: { nutrient: NutrientReading }) {
           <div className={`h-full rounded-full ${style.bar}`} style={{ width: `${percent}%` }} />
         </div>
         <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${style.chip}`}>
-          {style.label}
-          {nutrient.rating_hi ? ` / ${nutrient.rating_hi}` : ""}
+          {t(`moduleDetails.rating.${style.key}`)}
         </span>
       </div>
     </li>
@@ -103,17 +103,18 @@ function NutrientRow({ nutrient }: { nutrient: NutrientReading }) {
 // --------------------------------------------------------------------------
 
 function SoilStatusView({ details }: { details: SoilStatusDetails }) {
+  const { t } = useI18n();
   const plan = details.fertiliser_plan;
 
   return (
     <>
       {details.sample && (
         <p className="mb-3 text-sm text-soil-700">
-          Sample: {details.sample.soil_type ?? "soil"} from{" "}
+          {t("moduleDetails.sampleFrom")} {details.sample.soil_type ?? "soil"} from{" "}
           {details.sample.village ?? details.sample.district ?? "your area"}
-          {details.sample.test_date ? `, tested ${details.sample.test_date}` : ""}
+          {details.sample.test_date ? `, ${t("moduleDetails.testedOn")} ${details.sample.test_date}` : ""}
           {details.sample.records_averaged > 1
-            ? ` (average of ${details.sample.records_averaged} samples)`
+            ? ` (${t("moduleDetails.averageOfSamples", { count: details.sample.records_averaged })})`
             : ""}
         </p>
       )}
@@ -127,9 +128,9 @@ function SoilStatusView({ details }: { details: SoilStatusDetails }) {
       )}
 
       <div className="mt-4 grid grid-cols-2 gap-2">
-        {details.ph?.value != null && <Stat label="Soil pH" value={details.ph.value} />}
+        {details.ph?.value != null && <Stat label={t("moduleDetails.soilPh")} value={details.ph.value} />}
         {details.ec?.value != null && (
-          <Stat label="Salt (EC)" value={details.ec.value} unit="dS/m" />
+          <Stat label={t("moduleDetails.saltEc")} value={details.ec.value} unit="dS/m" />
         )}
       </div>
       {details.ph?.text && <p className="mt-2 text-base text-soil-700">{details.ph.text}.</p>}
@@ -137,15 +138,15 @@ function SoilStatusView({ details }: { details: SoilStatusDetails }) {
       {plan && (
         <div className="mt-5 rounded-xl border-2 border-soil-100 p-4">
           <h4 className="text-base font-bold">
-            Fertiliser for your field / खाद
+            {t("moduleDetails.fertiliserForField")}
             <span className="ml-2 text-sm font-normal text-soil-700">
               ({plan.for_your_field.area_hectare} ha)
             </span>
           </h4>
           <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-            <Stat label="Urea" value={plan.for_your_field.urea_bags_45kg} unit="bags" />
-            <Stat label="DAP" value={plan.for_your_field.dap_bags_50kg} unit="bags" />
-            <Stat label="MOP" value={plan.for_your_field.mop_bags_50kg} unit="bags" />
+            <Stat label={t("moduleDetails.urea")} value={plan.for_your_field.urea_bags_45kg} unit={t("moduleDetails.bags")} />
+            <Stat label={t("moduleDetails.dap")} value={plan.for_your_field.dap_bags_50kg} unit={t("moduleDetails.bags")} />
+            <Stat label={t("moduleDetails.mop")} value={plan.for_your_field.mop_bags_50kg} unit={t("moduleDetails.bags")} />
           </div>
           <p className="mt-3 text-sm text-soil-700">{plan.note}</p>
         </div>
@@ -160,63 +161,82 @@ function SoilStatusView({ details }: { details: SoilStatusDetails }) {
 // 2. Irrigation
 // --------------------------------------------------------------------------
 
-const IRRIGATION_BANNER: Record<string, { text: string; className: string; icon: string }> = {
-  irrigate_now: { text: "Irrigate today", className: "bg-red-100 text-red-900", icon: "🚨" },
-  irrigate_soon: { text: "Irrigate in ~2 days", className: "bg-amber-100 text-amber-900", icon: "⏳" },
-  wait: { text: "Wait — rain is coming", className: "bg-blue-100 text-blue-900", icon: "🌧️" },
-  none: { text: "No irrigation needed", className: "bg-crop-100 text-crop-700", icon: "✅" },
-  conserve: { text: "Save the moisture you have", className: "bg-amber-100 text-amber-900", icon: "🍂" },
-  pre_sowing: { text: "Prepare moisture before sowing", className: "bg-blue-100 text-blue-900", icon: "🌱" },
-  stop: { text: "Stop irrigating", className: "bg-soil-100 text-soil-900", icon: "🛑" },
-  unknown: { text: "Not available", className: "bg-soil-100 text-soil-900", icon: "❔" },
-};
-
 function IrrigationView({ details }: { details: IrrigationDetails }) {
-  const banner = IRRIGATION_BANNER[details.action] ?? IRRIGATION_BANNER.unknown;
+  const { t } = useI18n();
+  const KNOWN_ACTIONS = new Set([
+    "irrigate_now",
+    "irrigate_soon",
+    "wait",
+    "none",
+    "conserve",
+    "pre_sowing",
+    "stop",
+  ]);
+  const bannerKey = KNOWN_ACTIONS.has(details.action) ? details.action : "unknown";
+  const bannerIcon: Record<string, string> = {
+    irrigate_now: "🚨",
+    irrigate_soon: "⏳",
+    wait: "🌧️",
+    none: "✅",
+    conserve: "🍂",
+    pre_sowing: "🌱",
+    stop: "🛑",
+    unknown: "❔",
+  };
+  const bannerClass: Record<string, string> = {
+    irrigate_now: "bg-red-100 text-red-900",
+    irrigate_soon: "bg-amber-100 text-amber-900",
+    wait: "bg-blue-100 text-blue-900",
+    none: "bg-crop-100 text-crop-700",
+    conserve: "bg-amber-100 text-amber-900",
+    pre_sowing: "bg-blue-100 text-blue-900",
+    stop: "bg-soil-100 text-soil-900",
+    unknown: "bg-soil-100 text-soil-900",
+  };
   const balance = details.water_balance;
 
   return (
     <>
-      <div className={`flex items-center gap-3 rounded-xl px-4 py-3 ${banner.className}`}>
+      <div className={`flex items-center gap-3 rounded-xl px-4 py-3 ${bannerClass[bannerKey]}`}>
         <span className="text-3xl" aria-hidden>
-          {banner.icon}
+          {bannerIcon[bannerKey]}
         </span>
-        <span className="text-xl font-bold">{banner.text}</span>
+        <span className="text-xl font-bold">{t(`moduleDetails.irrigationBanner.${bannerKey}`)}</span>
       </div>
 
       {details.depth_mm != null && details.depth_mm > 0 && (
         <div className="mt-3 grid grid-cols-2 gap-2">
-          <Stat label="Water depth" value={details.depth_mm} unit="mm" />
+          <Stat label={t("moduleDetails.waterDepth")} value={details.depth_mm} unit="mm" />
           <Stat
-            label="For your field"
+            label={t("moduleDetails.forYourField")}
             value={(details.water_litres ?? 0).toLocaleString("en-IN")}
-            unit="litres"
+            unit={t("moduleDetails.litres")}
           />
         </div>
       )}
 
       {balance && (
         <div className="mt-4">
-          <h4 className="text-base font-bold">This week&apos;s water balance</h4>
+          <h4 className="text-base font-bold">{t("moduleDetails.thisWeeksWaterBalance")}</h4>
           <div className="mt-2 grid grid-cols-3 gap-2">
-            <Stat label="Crop needs" value={balance.demand_next_7d_mm} unit="mm" />
-            <Stat label="Rain (past 7d)" value={balance.rain_last_7d_mm} unit="mm" />
-            <Stat label="Rain (next 7d)" value={balance.rain_forecast_7d_mm} unit="mm" />
+            <Stat label={t("moduleDetails.cropNeeds")} value={balance.demand_next_7d_mm} unit="mm" />
+            <Stat label={t("moduleDetails.rainPast7d")} value={balance.rain_last_7d_mm} unit="mm" />
+            <Stat label={t("moduleDetails.rainNext7d")} value={balance.rain_forecast_7d_mm} unit="mm" />
           </div>
         </div>
       )}
 
       {details.next_critical_stage && (
         <p className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-lg">
-          <strong>Next key stage:</strong> {details.next_critical_stage.stage} in{" "}
-          {details.next_critical_stage.days_from_today} days.
+          <strong>{t("moduleDetails.nextKeyStage")}</strong> {details.next_critical_stage.stage}{" "}
+          {t("moduleDetails.inDays", { days: details.next_critical_stage.days_from_today })}.
           {details.next_critical_stage.note ? ` ${details.next_critical_stage.note}.` : ""}
         </p>
       )}
 
       {details.forecast && details.forecast.length > 0 && (
         <div className="mt-4">
-          <h4 className="text-base font-bold">Next 5 days</h4>
+          <h4 className="text-base font-bold">{t("moduleDetails.next5Days")}</h4>
           <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
             {details.forecast.map((day) => (
               <div
@@ -249,12 +269,13 @@ function IrrigationView({ details }: { details: IrrigationDetails }) {
 // --------------------------------------------------------------------------
 
 function CropRecommendationView({ details }: { details: CropRecommendationDetails }) {
+  const { t } = useI18n();
   return (
     <>
       {details.season_window && (
         <p className="mb-3 text-base text-soil-700">
-          Planning for <strong>{details.season_window}</strong>
-          {details.after_crop ? `, after your ${details.after_crop}` : ""}.
+          {t("moduleDetails.planningFor")} <strong>{details.season_window}</strong>
+          {details.after_crop ? `, ${t("moduleDetails.afterYourCrop")} ${details.after_crop}` : ""}.
         </p>
       )}
 
@@ -263,7 +284,7 @@ function CropRecommendationView({ details }: { details: CropRecommendationDetail
           <li
             key={crop.crop_name}
             className={`rounded-xl border-2 p-4 ${
-              index === 0 ? "border-crop-500 bg-crop-50" : "border-soil-100 bg-white"
+              index === 0 ? "border-crop-500 bg-crop-50" : "border-soil-100 bg-surface"
             }`}
           >
             <div className="flex items-baseline justify-between gap-2">
@@ -289,7 +310,7 @@ function CropRecommendationView({ details }: { details: CropRecommendationDetail
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-soil-700">
               <span>💧 {crop.water_requirement_mm} mm</span>
               <span>📅 {crop.duration_days} days</span>
-              {crop.is_legume && <span>🌱 adds nitrogen</span>}
+              {crop.is_legume && <span>🌱 {t("moduleDetails.addsNitrogen")}</span>}
             </div>
 
             {crop.reasons.length > 0 && (
@@ -328,11 +349,12 @@ function CropRecommendationView({ details }: { details: CropRecommendationDetail
 // --------------------------------------------------------------------------
 
 function RotationView({ details }: { details: RotationDetails }) {
+  const { t } = useI18n();
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
         <span className="rounded-full bg-soil-100 px-3 py-1 text-base font-semibold">
-          Now: {details.current_crop}
+          {t("moduleDetails.now")} {details.current_crop}
           {details.current_crop_local_name ? ` / ${details.current_crop_local_name}` : ""}
         </span>
       </div>
@@ -365,7 +387,7 @@ function RotationView({ details }: { details: RotationDetails }) {
 
       {details.avoid.length > 0 && (
         <p className="mt-3 rounded-xl bg-red-50 px-4 py-3 text-lg text-red-900">
-          <strong>Do not sow after {details.current_crop}:</strong> {details.avoid.join(", ")}
+          <strong>{t("moduleDetails.doNotSowAfter")} {details.current_crop}:</strong> {details.avoid.join(", ")}
         </p>
       )}
 
@@ -379,6 +401,7 @@ function RotationView({ details }: { details: RotationDetails }) {
 // --------------------------------------------------------------------------
 
 function RegenRotationView({ details }: { details: RegenRotationDetails }) {
+  const { t } = useI18n();
   return (
     <>
       <p className="mb-3 text-base text-soil-700">{details.reason}</p>
@@ -387,7 +410,7 @@ function RegenRotationView({ details }: { details: RegenRotationDetails }) {
           <li
             key={crop.crop_name}
             className={`rounded-xl border-2 p-4 ${
-              index === 0 ? "border-crop-500 bg-crop-50" : "border-soil-100 bg-white"
+              index === 0 ? "border-crop-500 bg-crop-50" : "border-soil-100 bg-surface"
             }`}
           >
             <div className="flex items-baseline justify-between gap-2">
@@ -422,21 +445,28 @@ function RegenRotationView({ details }: { details: RegenRotationDetails }) {
       </ol>
       {details.avoid && details.avoid.length > 0 && (
         <p className="mt-3 rounded-xl bg-red-50 px-4 py-3 text-lg text-red-900">
-          <strong>Avoid next:</strong> {details.avoid.join(", ")}
+          <strong>{t("moduleDetails.avoidNext")}</strong> {details.avoid.join(", ")}
         </p>
       )}
     </>
   );
 }
 
-const SEVERITY_STYLE: Record<string, { className: string; label: string }> = {
-  low: { className: "bg-crop-100 text-crop-700", label: "Low depletion" },
-  moderate: { className: "bg-amber-100 text-amber-900", label: "Moderate depletion" },
-  severe: { className: "bg-red-100 text-red-900", label: "Severe depletion" },
+const SEVERITY_KEY: Record<string, string> = {
+  low: "low",
+  moderate: "moderate",
+  severe: "severe",
+};
+const SEVERITY_CLASS: Record<string, string> = {
+  low: "bg-crop-100 text-crop-700",
+  moderate: "bg-amber-100 text-amber-900",
+  severe: "bg-red-100 text-red-900",
 };
 
 function SoilHealthView({ details }: { details: RegenSoilHealthDetails }) {
-  const severity = SEVERITY_STYLE[details.severity] ?? SEVERITY_STYLE.moderate;
+  const { t } = useI18n();
+  const severityKey = SEVERITY_KEY[details.severity] ?? "moderate";
+  const severityClass = SEVERITY_CLASS[details.severity] ?? SEVERITY_CLASS.moderate;
   const allPoints = [
     ...details.projection.current_practice.map((p) => p.soil_health_score),
     ...details.projection.regenerative_practice.map((p) => p.soil_health_score),
@@ -449,13 +479,13 @@ function SoilHealthView({ details }: { details: RegenSoilHealthDetails }) {
       <div className="flex items-center gap-3">
         <span className="text-4xl font-extrabold tabular-nums">{details.soil_health_score}</span>
         <span className="text-lg text-soil-700">/100</span>
-        <span className={`ml-auto rounded-full px-3 py-1 text-sm font-bold ${severity.className}`}>
-          {severity.label}
+        <span className={`ml-auto rounded-full px-3 py-1 text-sm font-bold ${severityClass}`}>
+          {t(`moduleDetails.severity.${severityKey}`)}
         </span>
       </div>
 
       <div className="mt-4">
-        <h4 className="text-base font-bold">3-season projection</h4>
+        <h4 className="text-base font-bold">{t("moduleDetails.threeSeasonProjection")}</h4>
         <p className="mt-1 text-sm text-soil-700">{details.trend}</p>
         <div className="mt-3 grid grid-cols-3 gap-2">
           {[0, 1, 2].map((i) => {
@@ -463,7 +493,9 @@ function SoilHealthView({ details }: { details: RegenSoilHealthDetails }) {
             const regen = details.projection.regenerative_practice[i];
             return (
               <div key={i} className="rounded-xl bg-soil-50 p-2 text-center">
-                <div className="text-xs font-semibold text-soil-700">Season {current.season}</div>
+                <div className="text-xs font-semibold text-soil-700">
+                  {t("moduleDetails.season", { n: current.season })}
+                </div>
                 <div className="mt-1 flex flex-col gap-1">
                   <div className="flex items-center gap-1">
                     <span className="h-2 w-2 rounded-full bg-red-500" aria-hidden />
@@ -479,8 +511,8 @@ function SoilHealthView({ details }: { details: RegenSoilHealthDetails }) {
           })}
         </div>
         <div className="mt-2 flex gap-4 text-xs text-soil-700">
-          <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-red-500" aria-hidden />Current practice</span>
-          <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-crop-600" aria-hidden />Regenerative practice</span>
+          <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-red-500" aria-hidden />{t("moduleDetails.currentPractice")}</span>
+          <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-crop-600" aria-hidden />{t("moduleDetails.regenerativePractice")}</span>
         </div>
       </div>
 
@@ -490,8 +522,9 @@ function SoilHealthView({ details }: { details: RegenSoilHealthDetails }) {
 }
 
 function FertilizerView({ details }: { details: RegenFertilizerDetails }) {
+  const { t } = useI18n();
   if (!details.recommended_npk || !details.current_estimated_usage) {
-    return <p className="text-base text-soil-700">No fertiliser model output available.</p>;
+    return <p className="text-base text-soil-700">{t("moduleDetails.noFertilizerData")}</p>;
   }
   const rec = details.recommended_npk;
   const cur = details.current_estimated_usage;
@@ -515,14 +548,14 @@ function FertilizerView({ details }: { details: RegenFertilizerDetails }) {
       {details.reduction_percent != null && (
         <p className="mt-3 text-lg font-semibold">
           {details.reduction_percent >= 0
-            ? `About ${details.reduction_percent}% less total fertiliser than typical usage.`
-            : `About ${Math.abs(details.reduction_percent)}% more balanced fertiliser needed (some nutrients under-applied).`}
+            ? t("moduleDetails.reductionLess", { percent: details.reduction_percent })
+            : t("moduleDetails.reductionMore", { percent: Math.abs(details.reduction_percent) })}
         </p>
       )}
 
       {details.explanation.length > 0 && (
         <div className="mt-4">
-          <h4 className="text-base font-bold">Why this recommendation / क्यों</h4>
+          <h4 className="text-base font-bold">{t("moduleDetails.whyThisRecommendation")}</h4>
           <ul className="mt-2 space-y-2">
             {details.explanation.map((entry) => (
               <li key={entry.feature}>
@@ -544,31 +577,35 @@ function FertilizerView({ details }: { details: RegenFertilizerDetails }) {
   );
 }
 
-const FIXER_LABEL: Record<string, { text: string; className: string }> = {
-  fast: { text: "Fast N-fixer", className: "bg-crop-100 text-crop-700" },
-  medium: { text: "Some N-fixing", className: "bg-amber-100 text-amber-900" },
-  none: { text: "Companion crop", className: "bg-soil-100 text-soil-900" },
-  unknown: { text: "Unknown", className: "bg-soil-100 text-soil-900" },
+const FIXER_CLASS: Record<string, string> = {
+  fast: "bg-crop-100 text-crop-700",
+  medium: "bg-amber-100 text-amber-900",
+  none: "bg-soil-100 text-soil-900",
+  unknown: "bg-soil-100 text-soil-900",
 };
 
 function CoverCroppingView({ details }: { details: RegenCoverCroppingDetails }) {
+  const { t } = useI18n();
   return (
     <>
       <ol className="space-y-2">
         {details.cover_crop_suggestions.map((suggestion) => {
-          const style = FIXER_LABEL[suggestion.nitrogen_fixing_speed] ?? FIXER_LABEL.unknown;
+          const fixerKey = FIXER_CLASS[suggestion.nitrogen_fixing_speed] ? suggestion.nitrogen_fixing_speed : "unknown";
+          const className = FIXER_CLASS[fixerKey];
           return (
             <li
               key={suggestion.cover_crop}
               className={`flex items-center justify-between rounded-xl border-2 p-3 ${
-                suggestion.rank === 1 ? "border-crop-500 bg-crop-50" : "border-soil-100 bg-white"
+                suggestion.rank === 1 ? "border-crop-500 bg-crop-50" : "border-soil-100 bg-surface"
               }`}
             >
               <span className="text-lg font-bold">
                 {suggestion.rank === 1 && <span aria-hidden>⭐ </span>}
                 {suggestion.cover_crop}
               </span>
-              <span className={`rounded-full px-3 py-1 text-xs font-bold ${style.className}`}>{style.text}</span>
+              <span className={`rounded-full px-3 py-1 text-xs font-bold ${className}`}>
+                {t(`moduleDetails.fixerSpeed.${fixerKey}`)}
+              </span>
             </li>
           );
         })}
@@ -579,13 +616,14 @@ function CoverCroppingView({ details }: { details: RegenCoverCroppingDetails }) 
 }
 
 function IrrigationEfficiencyView({ details }: { details: RegenIrrigationDetails }) {
+  const { t } = useI18n();
   return (
     <>
       {details.next_irrigation_date ? (
         <div className="flex items-center gap-3 rounded-xl bg-blue-50 px-4 py-3 text-blue-900">
           <span className="text-3xl" aria-hidden>📅</span>
           <div>
-            <div className="text-lg font-bold">Next irrigation: {details.next_irrigation_date}</div>
+            <div className="text-lg font-bold">{t("moduleDetails.nextIrrigation")} {details.next_irrigation_date}</div>
             {details.water_volume_mm != null && (
               <div className="text-sm">{details.water_volume_mm} mm</div>
             )}
@@ -594,18 +632,18 @@ function IrrigationEfficiencyView({ details }: { details: RegenIrrigationDetails
       ) : (
         <div className="flex items-center gap-3 rounded-xl bg-crop-100 px-4 py-3 text-crop-700">
           <span className="text-3xl" aria-hidden>🌧️</span>
-          <span className="text-lg font-bold">Rainfall-based - no pump schedule</span>
+          <span className="text-lg font-bold">{t("moduleDetails.rainfallBasedNoSchedule")}</span>
         </div>
       )}
 
       <p className="mt-3 text-base">{details.note}</p>
 
       <div className="mt-4 rounded-xl border-2 border-soil-100 p-4">
-        <h4 className="text-base font-bold">Cumulative water saved this season</h4>
+        <h4 className="text-base font-bold">{t("moduleDetails.cumulativeWaterSaved")}</h4>
         <p className="mt-1 text-2xl font-extrabold text-crop-700">
           {details.cumulative_water_saved_liters.toLocaleString("en-IN")} L
         </p>
-        <p className="text-xs text-soil-700">vs. a naive fixed weekly-irrigation schedule</p>
+        <p className="text-xs text-soil-700">{t("moduleDetails.vsNaiveSchedule")}</p>
       </div>
     </>
   );
@@ -621,6 +659,7 @@ function IrrigationEfficiencyView({ details }: { details: RegenIrrigationDetails
  * before anyone writes a view for it.
  */
 export default function ModuleDetails({ response }: { response: ModuleResponse }) {
+  const { t } = useI18n();
   const details = response.details as unknown;
 
   switch (response.module_name) {
@@ -646,7 +685,7 @@ export default function ModuleDetails({ response }: { response: ModuleResponse }
       return (
         <details className="mt-2">
           <summary className="cursor-pointer text-base font-semibold text-soil-700">
-            No view written for &quot;{response.module_name}&quot; yet — raw data
+            {t("moduleDetails.noViewYet", { module: response.module_name })}
           </summary>
           <pre className="mt-2 overflow-x-auto rounded-xl bg-soil-100 p-3 text-xs">
             {JSON.stringify(response.details, null, 2)}

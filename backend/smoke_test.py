@@ -28,6 +28,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from models.schemas import FarmInput  # noqa: E402
+from services import auth as auth_service  # noqa: E402
 from services import data_loader  # noqa: E402
 from services.aggregator import aggregate_as_module_response, aggregate_farm_data  # noqa: E402
 from services.modules import run_all  # noqa: E402
@@ -53,6 +54,21 @@ def post_json(path: str, payload: dict) -> tuple[int, dict]:
         return exc.code, json.loads(exc.read())
 
 
+def http_request(method: str, path: str, *, headers: dict | None = None, body: dict | None = None) -> tuple[int, dict | list]:
+    """GET/DELETE (and anything else post_json doesn't cover) with optional auth headers."""
+    data = json.dumps(body).encode("utf-8") if body is not None else None
+    request_headers = {"Content-Type": "application/json"} if body is not None else {}
+    request_headers.update(headers or {})
+    request = urllib.request.Request(f"{BASE_URL}{path}", data=data, headers=request_headers, method=method)
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            raw = response.read()
+            return response.status, json.loads(raw) if raw else {}
+    except urllib.error.HTTPError as exc:
+        raw = exc.read()
+        return exc.code, json.loads(raw) if raw else {}
+
+
 def post_multipart_photo(path: str, image_path: Path, crop_name: str) -> tuple[int, dict]:
     boundary = "----smoke-test-boundary"
     image_bytes = image_path.read_bytes()
@@ -75,7 +91,13 @@ def post_multipart_photo(path: str, image_path: Path, crop_name: str) -> tuple[i
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:
+        # This call's cold-start is the CNN subprocess bridge spinning up an
+        # isolated TensorFlow venv (cnn_health.py) - not a network call, and
+        # its latency depends entirely on what else is competing for RAM/CPU
+        # on the machine at the time (observed 15-30s+ on the 8GB laptop this
+        # was built on). 30s was measured too tight under load; 90s gives
+        # real headroom without masking an actual hang.
+        with urllib.request.urlopen(request, timeout=90) as response:
             return response.status, json.loads(response.read())
     except urllib.error.HTTPError as exc:
         return exc.code, json.loads(exc.read())
@@ -320,6 +342,55 @@ def main() -> int:
         assert payload["is_placeholder"] is True, "unsupported crop should return is_placeholder=True, not a guessed classification"
         assert payload["label"] == "unsupported_crop", f"expected label='unsupported_crop', got {payload['label']!r}"
         print(f"   [OK] unsupported crop (Wheat) correctly returned label='unsupported_crop', is_placeholder=True")
+
+    line("9. AUTH + FAMILY MEMBERS (real phone-OTP login, see services/auth.py)")
+
+    # 9a. /api/auth/verify with a bogus Firebase ID token must never crash or
+    #     silently "log someone in" - either 503 (FIREBASE_PROJECT_ID unset,
+    #     the expected state on a fresh clone) or 401 (configured, token
+    #     rejected). Never 200.
+    status, payload = http_request("POST", "/api/auth/verify", body={"id_token": "not-a-real-token"})
+    assert status in (401, 503), f"auth/verify with a bogus token should be 401 or 503, got {status} - {payload}"
+    print(f"   [OK] /api/auth/verify with a bogus token correctly rejected (HTTP {status})")
+
+    # 9b. Every family-members endpoint must require a session.
+    status, payload = http_request("GET", "/api/family-members")
+    assert status == 401, f"family-members without a session should be 401, got {status}"
+    status, payload = http_request("POST", "/api/family-members", body={"name": "X"})
+    assert status == 401, f"adding a family member without a session should be 401, got {status}"
+    print("   [OK] /api/family-members correctly requires a session (401 without one)")
+
+    # 9c. The authenticated path, exercised through the real HTTP layer (not
+    #     just the service functions) by minting a session the same way a
+    #     real Firebase-verified login would, bypassing only the external
+    #     SMS step this environment has no live Firebase project for.
+    test_user = auth_service.VerifiedFirebaseUser(uid="smoke-test-uid", phone="+910000000000")
+    session_token = auth_service.upsert_user_and_create_session(test_user)
+    auth_headers = {"Authorization": f"Bearer {session_token}"}
+    try:
+        status, payload = http_request("GET", "/api/auth/me", headers=auth_headers)
+        assert status == 200 and payload["phone"] == test_user.phone, f"auth/me: expected phone {test_user.phone!r}, got {payload}"
+
+        status, created = http_request("POST", "/api/family-members", headers=auth_headers, body={"name": "Smoke Test Member", "phone": "9000000000"})
+        assert status == 200, f"add family member: expected HTTP 200, got {status} - {created}"
+        assert created["name"] == "Smoke Test Member"
+
+        status, listed = http_request("GET", "/api/family-members", headers=auth_headers)
+        assert status == 200 and any(m["id"] == created["id"] for m in listed), "newly added family member should appear in the list"
+
+        # DELETE /api/family-members/{member_id}
+        status, _ = http_request("DELETE", f"/api/family-members/{created['id']}", headers=auth_headers)
+        assert status == 204, f"remove family member: expected HTTP 204, got {status}"
+
+        status, listed_after = http_request("GET", "/api/family-members", headers=auth_headers)
+        assert not any(m["id"] == created["id"] for m in listed_after), "removed family member should no longer appear in the list"
+        print("   [OK] authenticated session: /api/auth/me + full add/list/remove family-member cycle")
+    finally:
+        status, _ = http_request("POST", "/api/auth/logout", headers=auth_headers)
+        assert status == 204, f"auth/logout: expected HTTP 204, got {status}"
+        status, _ = http_request("GET", "/api/auth/me", headers=auth_headers)
+        assert status == 401, "a logged-out session must stop authenticating immediately"
+        print("   [OK] /api/auth/logout immediately invalidates the session")
 
     print("\nAll checks passed (Part A + Part B).\n")
     return 0

@@ -10,7 +10,7 @@ silent limitation.
 ## Expand the crop-health CNN beyond Corn, Potato, Soybean
 
 **Current state**: `backend/services/regen/cnn_health.py`'s trained model
-only recognises 3 of Kisan Sathi's 18 crops, because PlantVillage (the
+only recognises 3 of Kisan Mitra's 18 crops, because PlantVillage (the
 dataset it was trained on) only covers 14 crop species total, and only
 those 3 overlap with this project's crop list. Every other crop's photo
 gets an honest `label: "unsupported_crop"` placeholder rather than a
@@ -75,3 +75,58 @@ data.gov.in's Soil Health Card portal, hand-verify the column mapping
 against `services/data_loader.py`'s `SOIL_TEXT_COLUMNS`/`SOIL_NUMERIC_COLUMNS`,
 and replace the placeholder rows for just those states first rather than
 attempting full national coverage in one pass.
+
+---
+
+## Login (phone OTP) needs a real Firebase project to actually send SMS
+
+**Current state**: the 3-dot menu's Login modal, `lib/auth/AuthContext.tsx`
+(Firebase Phone Auth client flow), and the backend's `/api/auth/verify` +
+`/api/auth/me` + SQLite session/user tables (`backend/services/auth.py`) are
+all fully built and tested (see `tests/wizard_check.spec.ts`). What's
+missing is a live Firebase project: without `NEXT_PUBLIC_FIREBASE_*` (frontend)
+and `FIREBASE_PROJECT_ID` (backend) set, the modal says so plainly and
+`/api/auth/verify` returns 503 - neither pretends to log someone in.
+
+**Why it's not fixed here**: creating a Firebase project and enabling Phone
+Auth is an account-level action only the project owner can do.
+
+**Recommended next step**: console.firebase.google.com -> new project ->
+Build -> Authentication -> Sign-in method -> enable Phone -> Project settings
+-> General -> add a Web app -> copy its config into
+`frontend/.env.local` (see `.env.local.example`) and the same project ID into
+`backend/.env` (see `backend/.env.example`). No code changes needed.
+
+---
+
+## Contact-us details are a placeholder, not real support info
+
+**Current state**: `components/ContactModal.tsx` shows an honest "not set up
+yet" note rather than the fabricated helpline/email
+`kisan-sathi-frontend.html`'s prototype ships (`1800-XXX-XXXX`,
+`help@kisansathi.example`) - those looked real enough to be mistaken for
+genuine contact details, which is worse than admitting the gap.
+
+**Recommended next step**: once real support contact details exist, put them
+in `contactModal.pendingNote`'s place across all 9
+`frontend/lib/i18n/translations/*.ts` files, replacing the pending-note copy
+with the actual phone/email.
+
+---
+
+## Family members and Login are single-farm, not multi-farm-per-account
+
+**Current state**: `backend/services/auth.py`'s schema is user -> family
+members, flat - a logged-in phone number has one shared family-member list,
+not a list of farms each with its own members.
+
+**Why it's not fixed here**: the master prompt's brief didn't specify a
+multi-farm data model, and Part A/B/C's `FarmInput` itself has no persistent
+"farm" entity yet (every analysis is stateless, keyed only by the request) -
+inventing a farm/ownership model wasn't asked for and would be a real
+product decision, not an integration detail.
+
+**Recommended next step**: if farms need to become persistent, first-class
+entities (so "family member" means "someone attached to farm X"), design
+that schema change together with whoever owns the product decision, rather
+than retrofitting it under the family-members feature alone.

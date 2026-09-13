@@ -1,4 +1,4 @@
-# 🌾 Kisan Sathi — AI Crop & Farming Monitor
+# 🌾 Kisan Mitra — AI Crop & Farming Monitor
 
 A farmer enters **4 required things** — PIN code, land size, crop, sowing
 date — plus optional soil-test numbers and a crop photo, and the system
@@ -151,6 +151,12 @@ Every `POST` below takes the **same body** (`FarmInput`) and returns the
 | `POST` | `/api/analyze` | Aggregate + all 4 Part A modules in one round trip |
 | `POST` | `/api/crop-health-check` | STEP 4 - CNN crop photo health check (multipart upload) |
 | `POST` | `/api/regenerate` | Part B - Feature Resolver + 5 modules + Regeneration Score Engine |
+| `POST` | `/api/auth/verify` | Exchange a Firebase Phone Auth ID token for this app's session token |
+| `GET` | `/api/auth/me` | Whoami - resolves a session token to its logged-in phone number |
+| `POST` | `/api/auth/logout` | Invalidate the current session token |
+| `GET` | `/api/family-members` | List the logged-in farmer's family members |
+| `POST` | `/api/family-members` | Add a family member to the logged-in farmer's account |
+| `DELETE` | `/api/family-members/{member_id}` | Remove a family member from the logged-in farmer's account |
 <!-- END:API_REFERENCE -->
 
 Sample request body:
@@ -220,8 +226,10 @@ agri-monitor/
 │   │   ├── regen/
 │   │   ├── __init__.py
 │   │   ├── aggregator.py
+│   │   ├── auth.py
 │   │   ├── data_loader.py
 │   │   └── weather.py
+│   ├── .env.example
 │   ├── main.py
 │   ├── requirements.txt
 │   └── smoke_test.py
@@ -233,16 +241,31 @@ agri-monitor/
 │   │   ├── layout.tsx
 │   │   └── page.tsx
 │   ├── components/
+│   │   ├── ChatBotWidget.tsx
+│   │   ├── ContactModal.tsx
+│   │   ├── FamilyModal.tsx
 │   │   ├── FarmInputForm.tsx
 │   │   ├── FarmSummary.tsx
+│   │   ├── LanguagePickerModal.tsx
+│   │   ├── LanguageSwitcher.tsx
+│   │   ├── LoginModal.tsx
 │   │   ├── ModuleCard.tsx
 │   │   ├── ModuleDetails.tsx
+│   │   ├── MoreMenu.tsx
 │   │   └── RegenScoreCard.tsx
 │   ├── lib/
+│   │   ├── auth/
+│   │   ├── chatbot/
+│   │   ├── i18n/
+│   │   ├── theme/
+│   │   ├── voice/
 │   │   ├── api.ts
 │   │   └── types.ts
 │   ├── tests/
-│   │   └── visual_check.spec.ts
+│   │   ├── chatbot_check.spec.ts
+│   │   ├── i18n_check.spec.ts
+│   │   ├── visual_check.spec.ts
+│   │   └── wizard_check.spec.ts
 │   ├── .env.local
 │   ├── .env.local.example
 │   ├── .gitignore

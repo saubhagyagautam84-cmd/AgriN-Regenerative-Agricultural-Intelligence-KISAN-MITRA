@@ -8,19 +8,12 @@
  */
 
 import type { RegenerationScore } from "@/lib/types";
+import { useI18n } from "@/lib/i18n/I18nContext";
 
-const MODULE_LABELS: Record<string, string> = {
-  M1_rotation: "Rotation (M1)",
-  M2_soil_carbon: "Soil carbon (M2)",
-  M3_fertilizer: "Fertiliser efficiency (M3)",
-  M4_cover_crop: "Cover-crop diversity (M4)",
-  M5_irrigation: "Water efficiency (M5)",
-};
-
-const CONFIDENCE_BADGE: Record<string, { label: string; className: string }> = {
-  observed: { label: "observed", className: "bg-crop-100 text-crop-700" },
-  district_avg: { label: "district avg", className: "bg-amber-100 text-amber-900" },
-  estimated: { label: "estimated", className: "bg-red-100 text-red-800" },
+const CONFIDENCE_BADGE_CLASS: Record<string, string> = {
+  observed: "bg-crop-100 text-crop-700",
+  district_avg: "bg-amber-100 text-amber-900",
+  estimated: "bg-red-100 text-red-800",
 };
 
 function scoreColor(score: number): string {
@@ -30,18 +23,17 @@ function scoreColor(score: number): string {
 }
 
 export default function RegenScoreCard({ regen }: { regen: RegenerationScore }) {
+  const { t } = useI18n();
+
   if (regen.score == null || regen.breakdown == null) {
     return (
       <section
         data-testid="regen-score-card"
         className="rounded-2xl border-2 border-soil-200 bg-soil-50 p-5 shadow-sm"
       >
-        <h2 className="text-2xl font-bold">
-          Regeneration Score
-          <span className="block text-sm font-normal text-soil-700">पुनर्जनन स्कोर</span>
-        </h2>
+        <h2 className="text-2xl font-bold">{t("regenScore.title")}</h2>
         <p className="mt-3 text-lg text-soil-800">
-          {regen.message ?? "Insufficient data - please complete soil test"}
+          {regen.message ?? t("regenScore.insufficientData")}
         </p>
       </section>
     );
@@ -80,17 +72,14 @@ export default function RegenScoreCard({ regen }: { regen: RegenerationScore }) 
         </div>
 
         <div className="flex-1">
-          <h2 className="text-2xl font-bold">
-            Regeneration Score
-            <span className="block text-sm font-normal text-soil-700">पुनर्जनन स्कोर</span>
-          </h2>
+          <h2 className="text-2xl font-bold">{t("regenScore.title")}</h2>
           <div className="mt-1 flex flex-wrap gap-2">
             <span
               className={`inline-block rounded-full px-3 py-1 text-sm font-bold ${
                 regen.confidence === "High" ? "bg-crop-100 text-crop-700" : "bg-amber-100 text-amber-900"
               }`}
             >
-              {regen.confidence === "High" ? "✅ High confidence" : "⚠️ Estimated (add a soil test to improve)"}
+              {regen.confidence === "High" ? t("regenScore.highConfidence") : t("regenScore.estimatedConfidence")}
             </span>
             {regen.score_tone && (
               <span className="inline-block rounded-full bg-soil-100 px-3 py-1 text-sm font-bold text-soil-800 capitalize">
@@ -101,14 +90,17 @@ export default function RegenScoreCard({ regen }: { regen: RegenerationScore }) 
 
           <div className="mt-4 space-y-2">
             {Object.entries(moduleEntries).map(([key, entry]) => {
-              const badge = CONFIDENCE_BADGE[entry.confidence] ?? CONFIDENCE_BADGE.estimated;
+              const badgeClass = CONFIDENCE_BADGE_CLASS[entry.confidence] ?? CONFIDENCE_BADGE_CLASS.estimated;
+              const labelKey = `regenScore.moduleLabels.${key}`;
+              const translatedLabel = t(labelKey);
+              const moduleLabel = translatedLabel === labelKey ? key : translatedLabel;
               return (
                 <div key={key}>
                   <div className="flex items-center justify-between gap-2 text-sm">
                     <span className="flex items-center gap-2">
-                      {MODULE_LABELS[key] ?? key}
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badge.className}`}>
-                        {badge.label}
+                      {moduleLabel}
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badgeClass}`}>
+                        {t(`regenScore.confidenceBadge.${entry.confidence}`)}
                       </span>
                     </span>
                     <span className="font-semibold tabular-nums">{entry.score}/100</span>
@@ -132,7 +124,7 @@ export default function RegenScoreCard({ regen }: { regen: RegenerationScore }) 
 
       {_conflicts && _conflicts.length > 0 && (
         <div className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          <strong>Mixed signals:</strong>
+          <strong>{t("regenScore.mixedSignals")}</strong>
           <ul className="mt-1 list-inside list-disc">
             {_conflicts.map((c, i) => (
               <li key={i}>{c}</li>
@@ -149,7 +141,7 @@ export default function RegenScoreCard({ regen }: { regen: RegenerationScore }) 
 
       {regen.score_drivers && regen.score_drivers.length > 0 && (
         <div className="mt-4">
-          <h3 className="text-sm font-bold text-soil-800">What's driving this score</h3>
+          <h3 className="text-sm font-bold text-soil-800">{t("regenScore.scoreDriversTitle")}</h3>
           <ul className="mt-1 space-y-1">
             {regen.score_drivers.map((driver, i) => (
               <li key={i} className="flex justify-between text-sm">

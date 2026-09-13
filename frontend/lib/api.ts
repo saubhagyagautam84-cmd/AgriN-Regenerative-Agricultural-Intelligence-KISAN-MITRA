@@ -15,6 +15,7 @@ import type {
   ModuleResponse,
   RegenAnalyzeResponse,
 } from "./types";
+import { getStoredSessionToken } from "./auth/session";
 
 /**
  * Port 8001, not 8000 - port 8000 was already occupied on the machine this
@@ -205,4 +206,50 @@ export async function checkCropHealth(photo: File, cropName: string): Promise<Cr
       note: "Could not reach the health-check service - baseline health (1.0) assumed.",
     };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Family members (real login required) - see backend/services/auth.py
+// ---------------------------------------------------------------------------
+
+export interface FamilyMember {
+  id: number;
+  name: string;
+  phone: string | null;
+  created_at: string;
+}
+
+function authHeaders(): HeadersInit {
+  const token = getStoredSessionToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export async function listFamilyMembers(): Promise<FamilyMember[]> {
+  const response = await fetch(`${API_BASE}/api/family-members`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  if (response.status === 401) throw new ApiError("not-logged-in", 401);
+  if (!response.ok) throw new ApiError(`Server error (${response.status}).`, response.status);
+  return (await response.json()) as FamilyMember[];
+}
+
+export async function addFamilyMember(name: string, phone: string | null): Promise<FamilyMember> {
+  const response = await fetch(`${API_BASE}/api/family-members`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ name, phone }),
+  });
+  if (response.status === 401) throw new ApiError("not-logged-in", 401);
+  if (!response.ok) throw new ApiError(`Server error (${response.status}).`, response.status);
+  return (await response.json()) as FamilyMember;
+}
+
+export async function removeFamilyMember(id: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/family-members/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (response.status === 401) throw new ApiError("not-logged-in", 401);
+  if (!response.ok) throw new ApiError(`Server error (${response.status}).`, response.status);
 }

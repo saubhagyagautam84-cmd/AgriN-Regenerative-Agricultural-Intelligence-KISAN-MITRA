@@ -34,25 +34,40 @@ from pathlib import Path
 # (from the repo root) to resolve the `models` / `services` packages.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from fastapi import FastAPI, File, Form, Request, UploadFile  # noqa: E402
+from contextlib import asynccontextmanager  # noqa: E402
+
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile  # noqa: E402
 from fastapi.exceptions import RequestValidationError  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
 
 from models.schemas import (  # noqa: E402
     AnalyzeResponse,
+    AuthMeResponse,
+    AuthVerifyRequest,
+    AuthVerifyResponse,
     CropHealthCheckResponse,
     CropOption,
+    FamilyMemberIn,
+    FamilyMemberOut,
     FarmInput,
     ModuleResponse,
     RegenAnalyzeResponse,
     now_iso,
 )
+from services import auth as auth_service  # noqa: E402
 from services import data_loader  # noqa: E402
 from services.aggregator import aggregate_as_module_response, aggregate_farm_data  # noqa: E402
 from services.modules import MODULE_ORDER, run_all, run_module  # noqa: E402
 from services.regen import run_regen_pipeline  # noqa: E402
 from services.regen.cnn_health import predict_crop_health  # noqa: E402
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    auth_service.init_db()
+    yield
+
 
 app = FastAPI(
     title="Farm Monitoring API",
@@ -62,6 +77,7 @@ app = FastAPI(
         "All advisory output is currently rule-based/dummy and is marked "
         "`details.is_dummy_data = true`."
     ),
+    lifespan=lifespan,
 )
 
 # The Next.js dev server. Override with ALLOWED_ORIGINS="http://a,http://b".
@@ -235,7 +251,7 @@ async def crop_health_check(
     """
     Runs the trained MobileNetV2 model (see backend/cnn_training/) via a
     subprocess bridge (services/regen/cnn_health.py) - only recognises
-    Corn (maize), Potato and Soybean, the 3 of Kisan Sathi's 18 crops that
+    Corn (maize), Potato and Soybean, the 3 of Kisan Mitra's 18 crops that
     exist in the PlantVillage training data. `crop_name` is required so an
     unsupported crop's photo is honestly reported (`label:
     "unsupported_crop"`) instead of silently returning a wrong prediction.
@@ -270,3 +286,77 @@ def regenerate(farm_input: FarmInput) -> RegenAnalyzeResponse:
     """
     aggregated = aggregate_farm_data(farm_input)
     return run_regen_pipeline(farm_input, aggregated)
+
+
+# --------------------------------------------------------------------------
+# Auth (real phone-OTP login) + family members - see services/auth.py
+# --------------------------------------------------------------------------
+
+
+def require_session_user(
+    authorization: str | None = Header(default=None),
+) -> auth_service.SessionUser:
+    """FastAPI dependency: every family-members endpoint needs a valid session."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not logged in.")
+    token = authorization.removeprefix("Bearer ").strip()
+    user = auth_service.get_session_user(token)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Session expired or invalid - please log in again.")
+    return user
+
+
+@app.post(
+    "/api/auth/verify",
+    response_model=AuthVerifyResponse,
+    tags=["auth"],
+    summary="Exchange a Firebase Phone Auth ID token for this app's session token",
+)
+def auth_verify(body: AuthVerifyRequest) -> AuthVerifyResponse:
+    try:
+        firebase_user = auth_service.verify_firebase_id_token(body.id_token)
+    except auth_service.AuthNotConfiguredError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except auth_service.InvalidTokenError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+    session_token = auth_service.upsert_user_and_create_session(firebase_user)
+    return AuthVerifyResponse(session_token=session_token, phone=firebase_user.phone)
+
+
+@app.get("/api/auth/me", response_model=AuthMeResponse, tags=["auth"], summary="Whoami - resolves a session token to its logged-in phone number")
+def auth_me(user: auth_service.SessionUser = Depends(require_session_user)) -> AuthMeResponse:
+    return AuthMeResponse(phone=user.phone)
+
+
+@app.post("/api/auth/logout", tags=["auth"], status_code=204, summary="Invalidate the current session token")
+def auth_logout(authorization: str | None = Header(default=None)) -> None:
+    if authorization and authorization.startswith("Bearer "):
+        auth_service.delete_session(authorization.removeprefix("Bearer ").strip())
+
+
+@app.get("/api/family-members", response_model=list[FamilyMemberOut], tags=["family"], summary="List the logged-in farmer's family members")
+def get_family_members(
+    user: auth_service.SessionUser = Depends(require_session_user),
+) -> list[FamilyMemberOut]:
+    rows = auth_service.list_family_members(user.user_id)
+    return [FamilyMemberOut(**dict(row)) for row in rows]
+
+
+@app.post("/api/family-members", response_model=FamilyMemberOut, tags=["family"], summary="Add a family member to the logged-in farmer's account")
+def post_family_member(
+    body: FamilyMemberIn,
+    user: auth_service.SessionUser = Depends(require_session_user),
+) -> FamilyMemberOut:
+    row = auth_service.add_family_member(user.user_id, body.name, body.phone)
+    return FamilyMemberOut(**dict(row))
+
+
+@app.delete("/api/family-members/{member_id}", tags=["family"], status_code=204, summary="Remove a family member from the logged-in farmer's account")
+def delete_family_member(
+    member_id: int,
+    user: auth_service.SessionUser = Depends(require_session_user),
+) -> None:
+    found = auth_service.remove_family_member(user.user_id, member_id)
+    if not found:
+        raise HTTPException(status_code=404, detail="Family member not found.")

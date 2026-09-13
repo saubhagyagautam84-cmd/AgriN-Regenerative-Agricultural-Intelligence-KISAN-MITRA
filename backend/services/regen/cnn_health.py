@@ -10,7 +10,7 @@ placeholder used before training happened - nothing in main.py, M1 or M3
 needs to change.
 
 Coverage note: PlantVillage only has 14 crop species, so this model only
-recognises Corn (maize), Potato and Soybean out of Kisan Sathi's 18 crops -
+recognises Corn (maize), Potato and Soybean out of Kisan Mitra's 18 crops -
 every other crop's photo falls back to the baseline placeholder below (that
 is expected and reported honestly in the result note, not silently wrong).
 
@@ -39,7 +39,7 @@ LABELS_FILE = CNN_TRAINING_DIR / "labels.json"
 
 SUBPROCESS_TIMEOUT_SECONDS = 30
 
-# The only 3 of Kisan Sathi's 18 crops that exist in PlantVillage - see the
+# The only 3 of Kisan Mitra's 18 crops that exist in PlantVillage - see the
 # module docstring. Matched as a case-insensitive substring against the
 # farmer's crop_name (handles "Maize" and "Corn", "Soybean" and "Soya", etc).
 SUPPORTED_CROP_KEYWORDS = ("corn", "maize", "potato", "soybean", "soya")
