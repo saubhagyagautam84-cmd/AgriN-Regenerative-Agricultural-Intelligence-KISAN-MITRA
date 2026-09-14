@@ -25,8 +25,8 @@ import RegenScoreCard from "@/components/RegenScoreCard";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import MoreMenu from "@/components/MoreMenu";
 import { useI18n } from "@/lib/i18n/I18nContext";
-import { API_BASE, ApiError, runAnalysis, runRegenAnalysis, type AnalysisResult } from "@/lib/api";
-import type { FarmInput, RegenAnalyzeResponse } from "@/lib/types";
+import { API_BASE, ApiError, runAnalysis, runRegenAnalysis, type AnalysisResult, type OfflineRegenAnalyzeResponse } from "@/lib/api";
+import type { FarmInput } from "@/lib/types";
 
 /** One-tap demo so the team can show the dashboard without typing. */
 const DEMO_FARM: FarmInput = {
@@ -48,7 +48,7 @@ const DEMO_FARM: FarmInput = {
 export default function DashboardPage() {
   const { t } = useI18n();
   const [result, setResult] = useState<AnalysisResult | null>(null);
-  const [regenResult, setRegenResult] = useState<RegenAnalyzeResponse | null>(null);
+  const [regenResult, setRegenResult] = useState<OfflineRegenAnalyzeResponse | null>(null);
   const [regenError, setRegenError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -251,6 +251,14 @@ export default function DashboardPage() {
 
                 {regenResult && (
                   <div className="mt-4 space-y-5">
+                    {regenResult._offlineCachedAt && (
+                      <div
+                        className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-4 text-amber-900"
+                        data-testid="offline-cached-report-banner"
+                      >
+                        {t("dashboard.offlineCachedReport")}
+                      </div>
+                    )}
                     <RegenScoreCard regen={regenResult.regeneration_score} />
                     <div className="grid gap-5 xl:grid-cols-2">
                       <ModuleCard response={regenResult.module_1_rotation} />

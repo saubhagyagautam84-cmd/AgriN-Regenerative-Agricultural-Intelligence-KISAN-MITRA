@@ -162,6 +162,7 @@ const en = {
     teamNote: "For the team: every card above is one ModuleResponse from its own endpoint. All advisory numbers are rule-based placeholders — swap a module in backend/services/modules/ and this page picks it up with no frontend change.",
     regenSectionTitle: "Regenerative Intelligence Engine",
     regenErrorFallback: "Regenerative advice could not be loaded.",
+    offlineCachedReport: "📴 No connection right now - showing your last saved report for this field and crop.",
     footer: "Part A skeleton · soil + weather + crop data are placeholders compiled from ICAR guidelines · not yet fit for real farm decisions",
   },
   moduleCard: {
@@ -209,6 +210,10 @@ const en = {
     },
     mixedSignals: "Mixed signals:",
     scoreDriversTitle: "What's driving this score",
+    escalationTitle: "Want more certainty?",
+    escalationBody: "This estimate leans heavily on regional averages, not your own field. For an in-person soil assessment, contact your nearest Krishi Vigyan Kendra (KVK) - or add a soil test above to improve it yourself.",
+    peerComparisonTitle: "How you compare",
+    contributionNote: "Thanks - your soil test helps improve estimates for other farmers nearby too.",
   },
   moduleDetails: {
     whatToDo: "What to do",

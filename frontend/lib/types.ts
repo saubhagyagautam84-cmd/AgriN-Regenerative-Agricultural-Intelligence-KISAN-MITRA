@@ -499,6 +499,24 @@ export interface RegenHistory {
   farm_id: string;
   history: RegenHistoryPoint[];
   trend: string;
+  /** "real" once a 2nd submission exists for this farm_id (services/score_history.py); "simulated" (M2's own projection) for the very first one - see history_tracker.py. */
+  source?: "real" | "simulated";
+}
+
+/**
+ * Peer/regional benchmarking (backend/regeneration_score/peer_comparison.py)
+ * - built from OTHER real farms' stored scores in the same district. Null
+ * whenever fewer than MIN_PEERS real nearby submissions exist yet, rather
+ * than showing a comparison built on noise.
+ */
+export interface RegenPeerComparison {
+  scope: "district";
+  label: string;
+  peer_count: number;
+  peer_average_score: number;
+  your_score: number;
+  delta: number;
+  summary: string;
 }
 
 /**
@@ -517,6 +535,7 @@ export interface RegenerationScore {
   message?: string | null;
   history?: RegenHistory | null;
   score_drivers?: RegenScoreDriver[] | null;
+  peer_comparison?: RegenPeerComparison | null;
 }
 
 export interface RegenAnalyzeResponse {

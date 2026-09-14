@@ -398,6 +398,107 @@ def main() -> int:
         assert status == 401, "a logged-out session must stop authenticating immediately"
         print("   [OK] /api/auth/logout immediately invalidates the session")
 
+    line("10. REAL SEASON HISTORY + PEER COMPARISON + FARMER-CONTRIBUTED SOIL LOOP")
+
+    # 10a. history.source: "simulated" (M2's projection) for a farm_id's
+    # first-ever submission, "real" (services/score_history.py's actual
+    # stored snapshots) from the second submission on - regardless of how
+    # many times this whole smoke test has been re-run before (the DB
+    # persists across runs), the SECOND of two back-to-back calls for the
+    # SAME farm_id must always see at least one real prior point.
+    history_probe_body = {
+        "pincode": "226001", "land_size": 1.0, "land_unit": "acre", "crop_name": "smoke-test-history-crop",
+        "crop_intent": "current", "sowing_date": str(datetime.date.today() - datetime.timedelta(days=30)),
+        "irrigation_source": "canal", "soil_test_available": False,
+    }
+    post_json("/api/regenerate", history_probe_body)  # first call - establishes a prior point, result not asserted
+    _, second_payload = post_json("/api/regenerate", history_probe_body)
+    second_history = second_payload["regeneration_score"]["history"]
+    assert second_history is not None and second_history["source"] == "real", (
+        f"a farm_id's second submission must see real stored history, got {second_history!r}"
+    )
+    assert len(second_history["history"]) >= 2, "real history must include at least the prior point plus the current one"
+    print(f"   [OK] history.source is 'real' from the 2nd submission on (trend={second_history['trend']!r})")
+
+    # 10b. Peer comparison: submit enough DISTINCT farm_ids (different crop
+    # names) in one district to cross peer_comparison.py's MIN_PEERS
+    # threshold, then confirm the next submission in that district sees a
+    # real, structurally sound comparison - never a fabricated one below
+    # the threshold.
+    peer_district_pincode = "250001"  # Meerut - not used by any earlier scenario in this file
+    for i in range(3):
+        post_json("/api/regenerate", {
+            "pincode": peer_district_pincode, "land_size": 1.0, "land_unit": "acre",
+            "crop_name": f"smoke-test-peer-crop-{i}", "crop_intent": "current",
+            "sowing_date": str(datetime.date.today() - datetime.timedelta(days=30)),
+            "irrigation_source": "canal", "soil_test_available": False,
+        })
+    _, peer_payload = post_json("/api/regenerate", {
+        "pincode": peer_district_pincode, "land_size": 1.0, "land_unit": "acre",
+        "crop_name": "smoke-test-peer-crop-final", "crop_intent": "current",
+        "sowing_date": str(datetime.date.today() - datetime.timedelta(days=30)),
+        "irrigation_source": "canal", "soil_test_available": False,
+    })
+    peer_comparison = peer_payload["regeneration_score"]["peer_comparison"]
+    assert peer_comparison is not None, "after 3+ distinct nearby submissions, peer_comparison must no longer be null"
+    assert peer_comparison["peer_count"] >= 3
+    assert peer_comparison["scope"] == "district" and peer_comparison["label"]
+    print(f"   [OK] peer_comparison populates once enough real nearby submissions exist ({peer_comparison['summary']})")
+
+    # 10c. Farmer-contributed soil data loop: a soil-test submission with a
+    # practically-unique reading (so dedup never masks it, run after run)
+    # must increase the district's farmer_submitted_count by exactly 1, and
+    # an EXACT resubmission of the same reading must not increase it again
+    # - see services/farmer_soil_observations.py's content-hash dedupe.
+    unique_marker = round(50 + (datetime.datetime.now().timestamp() % 100), 3)
+    contribution_district = "Amritsar"
+    status, before = http_request("GET", f"/api/soil-observations/stats?district={contribution_district}")
+    assert status == 200
+    contribution_body = {
+        "pincode": "143001", "land_size": 1.0, "land_unit": "acre", "crop_name": "smoke-test-contribution-crop",
+        "crop_intent": "current", "sowing_date": str(datetime.date.today() - datetime.timedelta(days=30)),
+        "irrigation_source": "canal", "soil_test_available": True,
+        "soil_test_n_kg_per_ha": unique_marker, "soil_test_p_kg_per_ha": 12, "soil_test_k_kg_per_ha": 110,
+        "soil_test_ph": 6.7, "soil_test_organic_carbon_pct": 0.5,
+    }
+    post_json("/api/regenerate", contribution_body)
+    status, after_first = http_request("GET", f"/api/soil-observations/stats?district={contribution_district}")
+    assert after_first["farmer_submitted_count"] == before["farmer_submitted_count"] + 1, (
+        f"a new soil-test submission should add exactly 1 farmer-contributed observation, "
+        f"before={before['farmer_submitted_count']} after={after_first['farmer_submitted_count']}"
+    )
+    post_json("/api/regenerate", contribution_body)  # exact resubmission
+    status, after_second = http_request("GET", f"/api/soil-observations/stats?district={contribution_district}")
+    assert after_second["farmer_submitted_count"] == after_first["farmer_submitted_count"], (
+        "an EXACT resubmission of the same reading must be deduped, not counted again"
+    )
+    print(f"   [OK] farmer-contributed soil data loop: +1 on a new reading, deduped on an exact repeat ({contribution_district}: {after_second['farmer_submitted_count']} total)")
+
+    line("11. SMS/IVR FALLBACK CHANNEL (see services/telephony.py)")
+
+    status, payload = http_request("POST", "/api/sms/regenerate", body={"from_phone": "+919876500001", "body": "141001 WHEAT 20 BOREWELL"})
+    assert status == 200, f"sms/regenerate: expected HTTP 200, got {status} - {payload}"
+    assert payload["understood"] is True
+    assert "Regen score" in payload["reply_text"], f"expected a compact regen-score reply, got {payload['reply_text']!r}"
+    print(f"   [OK] SMS command (no soil test) understood: {payload['reply_text']!r}")
+
+    status, payload = http_request("POST", "/api/sms/regenerate", body={"from_phone": "+919876500001", "body": "141001 WHEAT 20 BOREWELL 240 15 140 6.8 0.6"})
+    assert status == 200 and payload["understood"] is True
+    assert "Regen score" in payload["reply_text"]
+    print(f"   [OK] SMS command (with soil test) understood: {payload['reply_text']!r}")
+
+    status, payload = http_request("POST", "/api/sms/regenerate", body={"from_phone": "+919876500001", "body": "this is not a real command at all"})
+    assert status == 200, f"an unparseable SMS must still reply 200 with a help message, never a 500, got {status}"
+    assert payload["understood"] is False
+    assert "PIN CROP DAYS IRRIGATION" in payload["reply_text"]
+    print("   [OK] unparseable SMS command (wrong token count) replies with the format hint instead of erroring")
+
+    status, payload = http_request("POST", "/api/sms/regenerate", body={"from_phone": "+919876500001", "body": "notapin WHEAT 20 BOREWELL"})
+    assert status == 200
+    assert payload["understood"] is False
+    assert "PIN code" in payload["reply_text"], f"expected a PIN-specific error, got {payload['reply_text']!r}"
+    print("   [OK] a 4-token command with an invalid PIN replies with a specific PIN error, not a crash")
+
     print("\nAll checks passed (Part A + Part B).\n")
     return 0
 

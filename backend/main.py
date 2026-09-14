@@ -18,6 +18,9 @@ POST /api/irrigation-advice   STEP 4 - module 2
 POST /api/crop-recommendation STEP 4 - module 3
 POST /api/rotation-suggestion STEP 4 - module 4
 POST /api/analyze             aggregate + all 4 modules in one round trip
+POST /api/regenerate          Part B - Feature Resolver + 5 modules + Regeneration Score Engine
+GET  /api/soil-observations/stats   farmer-contributed soil data loop - counts by district
+POST /api/sms/regenerate      SMS/IVR fallback channel - see services/telephony.py
 
 Every POST above takes the same body (FarmInput) and every one of them
 returns the same envelope (ModuleResponse). That uniformity is the whole
@@ -29,6 +32,7 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+from typing import Optional
 
 # Allow both `uvicorn main:app` (from backend/) and `uvicorn backend.main:app`
 # (from the repo root) to resolve the `models` / `services` packages.
@@ -53,10 +57,16 @@ from models.schemas import (  # noqa: E402
     FarmInput,
     ModuleResponse,
     RegenAnalyzeResponse,
+    SmsInboundRequest,
+    SmsInboundResponse,
+    SoilObservationStats,
     now_iso,
 )
 from services import auth as auth_service  # noqa: E402
 from services import data_loader  # noqa: E402
+from services import farmer_soil_observations  # noqa: E402
+from services import score_history  # noqa: E402
+from services import telephony  # noqa: E402
 from services.aggregator import aggregate_as_module_response, aggregate_farm_data  # noqa: E402
 from services.modules import MODULE_ORDER, run_all, run_module  # noqa: E402
 from services.regen import run_regen_pipeline  # noqa: E402
@@ -66,6 +76,8 @@ from services.regen.cnn_health import predict_crop_health  # noqa: E402
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     auth_service.init_db()
+    score_history.init_db()
+    farmer_soil_observations.init_db()
     yield
 
 
@@ -286,6 +298,78 @@ def regenerate(farm_input: FarmInput) -> RegenAnalyzeResponse:
     """
     aggregated = aggregate_farm_data(farm_input)
     return run_regen_pipeline(farm_input, aggregated)
+
+
+@app.get(
+    "/api/soil-observations/stats",
+    response_model=SoilObservationStats,
+    tags=["regen"],
+    summary="Farmer-contributed soil data loop - how many real readings exist for a district",
+)
+def soil_observations_stats(district: Optional[str] = None) -> SoilObservationStats:
+    """
+    Transparency endpoint for the farmer-contributed soil data loop (see
+    services/farmer_soil_observations.py): every soil-test submission a
+    farmer makes through the normal wizard densifies their district's
+    average for OTHER nearby farmers. This lets the frontend show that
+    honestly instead of just asserting it happens invisibly.
+    """
+    farmer_count = farmer_soil_observations.count_observations(district=district)
+    official_records, _ = data_loader.load_soil_records()
+    official_count = sum(
+        1 for r in official_records if district is None or (r.district or "").strip().lower() == district.strip().lower()
+    )
+    return SoilObservationStats(
+        district=district, farmer_submitted_count=farmer_count, official_soil_health_card_count=official_count
+    )
+
+
+@app.post(
+    "/api/sms/regenerate",
+    response_model=SmsInboundResponse,
+    tags=["regen"],
+    summary="SMS/IVR fallback channel - a gateway webhook posts an inbound text here, gets back a reply to send",
+)
+def sms_regenerate(body: SmsInboundRequest) -> SmsInboundResponse:
+    """
+    The fallback channel for farmers without a smartphone or data connection
+    - see services/telephony.py for the command format and the
+    provider-agnostic send_sms() interface (a real SMS gateway's inbound
+    webhook posts here in production; TELEPHONY_PROVIDER=console's local
+    simulator stands in until a real provider account exists).
+    """
+    parsed = telephony.parse_sms_command(body.body)
+    if isinstance(parsed, str):
+        telephony.send_sms(body.from_phone, parsed)
+        return SmsInboundResponse(reply_text=parsed, understood=False)
+
+    try:
+        farm_input = FarmInput(
+            pincode=parsed.pincode,
+            land_size=1.0,
+            land_unit="acre",
+            crop_name=parsed.crop_name,
+            crop_intent="current",
+            sowing_date=parsed.sowing_date,
+            irrigation_source=parsed.irrigation_source,
+            soil_test_available=parsed.soil_test_available,
+            soil_test_n_kg_per_ha=parsed.soil_test_n_kg_per_ha,
+            soil_test_p_kg_per_ha=parsed.soil_test_p_kg_per_ha,
+            soil_test_k_kg_per_ha=parsed.soil_test_k_kg_per_ha,
+            soil_test_ph=parsed.soil_test_ph,
+            soil_test_organic_carbon_pct=parsed.soil_test_organic_carbon_pct,
+        )
+    except Exception as exc:  # noqa: BLE001 - a bad value must reply with SMS text, never a 500
+        reply = f"Could not use those values: {str(exc).splitlines()[0]}"
+        telephony.send_sms(body.from_phone, reply)
+        return SmsInboundResponse(reply_text=reply, understood=False)
+
+    aggregated = aggregate_farm_data(farm_input)
+    result = run_regen_pipeline(farm_input, aggregated)
+    regen = result.regeneration_score
+    reply = telephony.format_sms_reply(regen.score, regen.confidence, regen.weakest_module, regen.improvement_tip)
+    telephony.send_sms(body.from_phone, reply)
+    return SmsInboundResponse(reply_text=reply, understood=True)
 
 
 # --------------------------------------------------------------------------

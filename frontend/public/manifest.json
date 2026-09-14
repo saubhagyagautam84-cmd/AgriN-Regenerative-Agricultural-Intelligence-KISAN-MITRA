@@ -1,0 +1,18 @@
+{
+  "name": "Kisan Mitra — Farm Advisor",
+  "short_name": "Kisan Mitra",
+  "description": "Soil health, irrigation, crop and rotation advice for Indian farmers, from a PIN code and a crop name.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2f7a4f",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

@@ -16,6 +16,7 @@ import type {
   RegenAnalyzeResponse,
 } from "./types";
 import { getStoredSessionToken } from "./auth/session";
+import { loadLastReport, saveLastReport } from "./offlineCache";
 
 /**
  * Port 8001, not 8000 - port 8000 was already occupied on the machine this
@@ -169,9 +170,33 @@ export async function runAnalysis(input: FarmInput): Promise<AnalysisResult> {
 // PART B - Regenerative Intelligence Engine
 // ---------------------------------------------------------------------------
 
-/** Feature Resolver -> 5 modules -> Regeneration Score Engine, in one call. */
-export async function runRegenAnalysis(input: FarmInput): Promise<RegenAnalyzeResponse> {
-  return postJson<RegenAnalyzeResponse>("/api/regenerate", input);
+/** A RegenAnalyzeResponse that was recovered from the offline cache rather than fetched live - see lib/offlineCache.ts. */
+export type OfflineRegenAnalyzeResponse = RegenAnalyzeResponse & { _offlineCachedAt?: string };
+
+/**
+ * Feature Resolver -> 5 modules -> Regeneration Score Engine, in one call.
+ *
+ * Offline fallback: on a genuine network failure (ApiError.status === 0 -
+ * the server was unreachable, not a validation/server error) this tries the
+ * last successful report for the SAME pincode+crop from lib/offlineCache.ts
+ * before giving up, so a farmer who already checked once and loses signal
+ * still sees their last result instead of a dead error screen. Marked with
+ * `_offlineCachedAt` so the UI can show it was recovered, not live.
+ */
+export async function runRegenAnalysis(input: FarmInput): Promise<OfflineRegenAnalyzeResponse> {
+  try {
+    const result = await postJson<RegenAnalyzeResponse>("/api/regenerate", input);
+    saveLastReport(input, result);
+    return result;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 0) {
+      const cached = loadLastReport(input);
+      if (cached) {
+        return { ...cached.result, _offlineCachedAt: cached.savedAt };
+      }
+    }
+    throw err;
+  }
 }
 
 /**

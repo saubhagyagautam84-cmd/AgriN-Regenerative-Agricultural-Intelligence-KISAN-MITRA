@@ -22,10 +22,41 @@ from models.schemas import AggregatedData, FarmInput, ModuleResponse, RegenAnaly
 from regeneration_score.adapters import adapt_all_modules
 from regeneration_score.dynamic_weights import get_dynamic_weights
 from regeneration_score.explainability import build_score_drivers
-from regeneration_score.history_tracker import generate_farm_id, simulate_history
+from regeneration_score.history_tracker import build_real_history, generate_farm_id, simulate_history
+from regeneration_score.peer_comparison import build_peer_comparison
 from regeneration_score.score_engine import compute_regeneration_score
+from services import farmer_soil_observations, score_history
 from services.regen import m1_rotation, m2_soil_carbon, m3_fertilizer, m4_cover_cropping, m5_irrigation
 from services.regen.feature_resolver import build_enriched_feature_vector
+
+
+def _contribute_farmer_soil_observation(farm_input: FarmInput, aggregated: AggregatedData) -> None:
+    """
+    The farmer-contributed soil data loop's write side: if the farmer typed
+    in their own soil test values, persist them (geotagged via the location
+    already resolved for this request) so they densify the block/district
+    average other nearby farmers' estimates are built from - see
+    services/farmer_soil_observations.py for the dedupe/disclosure rules.
+    Never raises: a storage hiccup here must not break the farmer's own
+    report, which is why this runs as a best-effort side effect, not
+    something the response depends on.
+    """
+    if not farm_input.soil_test_available:
+        return
+    try:
+        farmer_soil_observations.record_observation(
+            pincode=farm_input.pincode,
+            block=aggregated.location.block,
+            district=aggregated.location.district,
+            state=aggregated.location.state,
+            n_kg_per_ha=farm_input.soil_test_n_kg_per_ha,
+            p_kg_per_ha=farm_input.soil_test_p_kg_per_ha,
+            k_kg_per_ha=farm_input.soil_test_k_kg_per_ha,
+            ph=farm_input.soil_test_ph,
+            organic_carbon_pct=farm_input.soil_test_organic_carbon_pct,
+        )
+    except Exception:  # noqa: BLE001 - best-effort; never break the farmer's own report over this
+        pass
 
 
 def _safe(name: str, fn: Callable[[], ModuleResponse]) -> ModuleResponse:
@@ -46,6 +77,7 @@ def _safe(name: str, fn: Callable[[], ModuleResponse]) -> ModuleResponse:
 
 def run_regen_pipeline(farm_input: FarmInput, aggregated: AggregatedData) -> RegenAnalyzeResponse:
     vector = build_enriched_feature_vector(farm_input, aggregated)
+    _contribute_farmer_soil_observation(farm_input, aggregated)
 
     # --- 2. M2 severity (must run before M1) --------------------------------
     severity = m2_soil_carbon.compute_severity(vector)
@@ -86,16 +118,31 @@ def run_regen_pipeline(farm_input: FarmInput, aggregated: AggregatedData) -> Reg
     )
     score_result = compute_regeneration_score(adapted_or_none, weights=weights)
 
-    # --- Steps 7-8: simulated history + explainability (only meaningful alongside a real score) -
+    # --- Steps 7-8: history (real once it exists, simulated for a farm_id's
+    # first-ever submission) + explainability (only meaningful alongside a
+    # real score) ---------------------------------------------------------
     history = None
     score_drivers = None
+    peer_comparison = None
     if score_result["regeneration_score"] is not None:
         farm_id = generate_farm_id(farm_input.pincode, farm_input.crop_name)
-        history = simulate_history(
-            farm_id, score_result["regeneration_score"], m2_response.details.get("projection") or {}
+        score_history.record_snapshot(
+            farm_id, farm_input.pincode, farm_input.crop_name,
+            score_result["regeneration_score"], score_result["confidence_level"],
+            district=aggregated.location.district, state=aggregated.location.state,
         )
+        prior_snapshots = score_history.get_prior_snapshots(farm_id)
+        if prior_snapshots:
+            history = build_real_history(farm_id, prior_snapshots, score_result["regeneration_score"])
+        else:
+            history = simulate_history(
+                farm_id, score_result["regeneration_score"], m2_response.details.get("projection") or {}
+            )
         score_drivers = build_score_drivers(
             m1_response.details, m3_response.details, m4_response.details, score_result["breakdown"]
+        )
+        peer_comparison = build_peer_comparison(
+            farm_id, aggregated.location.district, score_result["regeneration_score"]
         )
 
     regen_score = RegenerationScore(
@@ -108,6 +155,7 @@ def run_regen_pipeline(farm_input: FarmInput, aggregated: AggregatedData) -> Reg
         message=score_result.get("message"),
         history=history,
         score_drivers=score_drivers,
+        peer_comparison=peer_comparison,
     )
 
     return RegenAnalyzeResponse(

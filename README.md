@@ -151,6 +151,8 @@ Every `POST` below takes the **same body** (`FarmInput`) and returns the
 | `POST` | `/api/analyze` | Aggregate + all 4 Part A modules in one round trip |
 | `POST` | `/api/crop-health-check` | STEP 4 - CNN crop photo health check (multipart upload) |
 | `POST` | `/api/regenerate` | Part B - Feature Resolver + 5 modules + Regeneration Score Engine |
+| `GET` | `/api/soil-observations/stats` | Farmer-contributed soil data loop - how many real readings exist for a district |
+| `POST` | `/api/sms/regenerate` | SMS/IVR fallback channel - a gateway webhook posts an inbound text here, gets back a reply to send |
 | `POST` | `/api/auth/verify` | Exchange a Firebase Phone Auth ID token for this app's session token |
 | `GET` | `/api/auth/me` | Whoami - resolves a session token to its logged-in phone number |
 | `POST` | `/api/auth/logout` | Invalidate the current session token |
@@ -220,6 +222,7 @@ agri-monitor/
 │   │   ├── explainability.py
 │   │   ├── history_tracker.py
 │   │   ├── normalizer.py
+│   │   ├── peer_comparison.py
 │   │   ├── score_engine.py
 │   │   └── test_edge_cases.py
 │   ├── services/
@@ -229,12 +232,16 @@ agri-monitor/
 │   │   ├── aggregator.py
 │   │   ├── auth.py
 │   │   ├── data_loader.py
+│   │   ├── farmer_soil_observations.py
+│   │   ├── score_history.py
+│   │   ├── telephony.py
 │   │   └── weather.py
 │   ├── .env.example
 │   ├── main.py
 │   ├── requirements.txt
 │   └── smoke_test.py
 ├── docs/
+│   ├── api-reference.md
 │   └── field-spec.md
 ├── frontend/
 │   ├── app/
@@ -253,6 +260,7 @@ agri-monitor/
 │   │   ├── ModuleCard.tsx
 │   │   ├── ModuleDetails.tsx
 │   │   ├── MoreMenu.tsx
+│   │   ├── PwaRegister.tsx
 │   │   └── RegenScoreCard.tsx
 │   ├── lib/
 │   │   ├── auth/
@@ -261,7 +269,12 @@ agri-monitor/
 │   │   ├── theme/
 │   │   ├── voice/
 │   │   ├── api.ts
+│   │   ├── offlineCache.ts
 │   │   └── types.ts
+│   ├── public/
+│   │   ├── icon.svg
+│   │   ├── manifest.json
+│   │   └── sw.js
 │   ├── tests/
 │   │   ├── chatbot_check.spec.ts
 │   │   ├── i18n_check.spec.ts
@@ -286,6 +299,7 @@ agri-monitor/
 │   └── generate_readme.py
 ├── .gitattributes
 ├── .gitignore
+├── CONTRIBUTING.md
 ├── FUTURE_WORK.md
 ├── README.md
 └── verify.sh

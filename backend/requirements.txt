@@ -11,3 +11,7 @@ python-multipart>=0.0.9
 # services/auth.py.
 google-auth>=2.35
 requests>=2.32
+# Optional - only needed if TELEPHONY_PROVIDER=twilio (see services/telephony.py).
+# The default "console" simulator needs no extra package; install this
+# yourself when you actually have a Twilio account to wire in.
+# twilio>=9.0

@@ -485,7 +485,17 @@ class RegenerationScore(BaseModel):
         default=None, description="Set only when score/confidence/breakdown are null - explains why."
     )
     history: Optional[dict[str, Any]] = Field(
-        default=None, description="Simulated from M2's 3-season projection - see regeneration_score/history_tracker.py."
+        default=None,
+        description=(
+            "Real, stored season-over-season scores once a second submission exists for this "
+            "farm_id (see services/score_history.py); simulated from M2's 3-season projection "
+            "for a farm_id's first-ever submission (regeneration_score/history_tracker.py). "
+            "Carries a 'source': 'real'|'simulated' field so callers can tell which."
+        ),
+    )
+    peer_comparison: Optional[dict[str, Any]] = Field(
+        default=None,
+        description="How this score compares to other real submissions nearby - see regeneration_score/peer_comparison.py. Null when too few nearby submissions exist yet to compare honestly.",
     )
     score_drivers: Optional[list[dict[str, Any]]] = Field(
         default=None, description="Ranked factors pulled from M1/M3's own explainability output - see regeneration_score/explainability.py."
@@ -546,3 +556,38 @@ class FamilyMemberOut(BaseModel):
     name: str
     phone: Optional[str]
     created_at: int
+
+
+# --------------------------------------------------------------------------
+# Farmer-contributed soil data loop - see services/farmer_soil_observations.py
+# --------------------------------------------------------------------------
+
+
+class SoilObservationStats(BaseModel):
+    """GET /api/soil-observations/stats - how many real farmer-submitted readings exist for a district, for transparency (and to feed the wizard's 'this helps others nearby' note)."""
+
+    district: Optional[str] = None
+    farmer_submitted_count: int
+    official_soil_health_card_count: int
+
+
+# --------------------------------------------------------------------------
+# SMS/IVR fallback channel - see services/telephony.py
+# --------------------------------------------------------------------------
+
+
+class SmsInboundRequest(BaseModel):
+    """
+    Body an SMS gateway webhook forwards for an inbound message (shape is
+    provider-agnostic - Twilio/Exotel/etc. all reduce to "from this phone
+    number, this text arrived"; see services/telephony.py's simulator for a
+    local stand-in that needs no real account).
+    """
+
+    from_phone: str = Field(..., min_length=5, max_length=20)
+    body: str = Field(..., min_length=1, max_length=320)
+
+
+class SmsInboundResponse(BaseModel):
+    reply_text: str = Field(..., description="What gets sent back to the farmer's phone - kept SMS-length.")
+    understood: bool

@@ -114,6 +114,61 @@ with the actual phone/email.
 
 ---
 
+## SMS/IVR fallback channel covers SMS only, not voice IVR
+
+**Current state**: `backend/services/telephony.py` + `POST /api/sms/regenerate`
+give a farmer without a smartphone a real, working, terse-text-command
+regeneration score over SMS (see the module's own docstring for the command
+format), with a console/log simulator standing in for a real provider
+(`TELEPHONY_PROVIDER=console`, default) until a real Twilio (or similar)
+account is configured. "IVR" (an actual phone call with a spoken menu -
+TwiML voice webhooks, DTMF key-press handling, a per-call state machine)
+was not built.
+
+**Why it's not fixed here**: a real voice IVR flow needs the same live
+telephony account the SMS side already stands in for AND a session model
+keyed by call SID that can't be meaningfully exercised or smoke-tested
+without an actual phone call - unlike SMS, there's no honest way to build a
+local "simulator" for a live voice conversation.
+
+**Recommended next step**: once a real `TELEPHONY_PROVIDER=twilio` account
+exists (see `.env.example`), add a `POST /api/ivr/webhook` that returns
+TwiML built from `services/telephony.py`'s existing `parse_sms_command()`
+logic re-used for DTMF digit sequences, with call-SID-keyed state held the
+same way `services/auth.py` holds sessions (a SQLite table, not in-memory,
+so a call surviving a server restart isn't a hard requirement to get right
+on the first pass).
+
+---
+
+## Offline/PWA mode caches the app shell, not a full install-and-sync pipeline
+
+**Current state**: `frontend/public/sw.js` is a hand-written, dependency-free
+service worker that opportunistically cache-first's same-origin GET
+responses (the page shell, Next.js's static JS/CSS chunks, the manifest,
+the icon) - a second visit with no signal still loads the wizard instead of
+a browser error page. Separately, `frontend/lib/offlineCache.ts` saves the
+last successful `/api/regenerate` report to localStorage per farm+crop, so
+a farmer who already checked once and loses signal still sees their last
+result. Neither path touches `/api/` traffic - POST requests always go
+straight to the network and simply fail honestly (with the cached-report
+fallback) when there is none.
+
+**Why it's not fixed here**: a production-grade offline experience
+(background sync so a submission made offline sends itself once signal
+returns, a build-time precache manifest via Workbox/`next-pwa`/`@serwist/next`,
+proper cache versioning tied to deploys) is a real build-tooling decision -
+this project's build pipeline doesn't already include a precache-manifest
+generator, and picking/pinning one is worth its own deliberate pass rather
+than a dependency bolted on here.
+
+**Recommended next step**: once the app has a real deploy pipeline, adopt
+`@serwist/next` (the actively maintained `next-pwa` successor) for
+build-time precaching, and add a background-sync queue for `/api/regenerate`
+submissions made while offline.
+
+---
+
 ## Family members and Login are single-farm, not multi-farm-per-account
 
 **Current state**: `backend/services/auth.py`'s schema is user -> family

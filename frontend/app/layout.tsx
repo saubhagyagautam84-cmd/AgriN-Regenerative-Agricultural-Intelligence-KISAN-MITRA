@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/lib/theme/ThemeContext";
 import { AuthProvider } from "@/lib/auth/AuthContext";
 import LanguagePickerModal from "@/components/LanguagePickerModal";
 import ChatBotWidget from "@/components/ChatBotWidget";
+import PwaRegister from "@/components/PwaRegister";
 
 // Ported from kisan-sathi-frontend.html: Baloo 2 for headings/buttons/brand,
 // Noto Sans + Noto Sans Devanagari for body text - both are required, not
@@ -34,6 +35,8 @@ export const metadata: Metadata = {
   title: "Kisan Mitra — Farm Advisor",
   description:
     "Soil health, irrigation, crop and rotation advice for Indian farmers, from a PIN code and a crop name.",
+  manifest: "/manifest.json",
+  icons: { icon: "/icon.svg" },
 };
 
 export const viewport: Viewport = {
@@ -41,6 +44,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   // Most farmers will open this on a phone. Do not block pinch-zoom.
   maximumScale: 5,
+  themeColor: "#2f7a4f",
 };
 
 export default function RootLayout({
@@ -59,6 +63,7 @@ export default function RootLayout({
               <LanguagePickerModal />
               {children}
               <ChatBotWidget />
+              <PwaRegister />
             </AuthProvider>
           </I18nProvider>
         </ThemeProvider>

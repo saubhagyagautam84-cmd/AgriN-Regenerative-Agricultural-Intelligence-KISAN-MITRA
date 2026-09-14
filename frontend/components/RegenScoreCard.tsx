@@ -147,6 +147,20 @@ export default function RegenScoreCard({ regen }: { regen: RegenerationScore }) 
         </p>
       )}
 
+      {regen.confidence === "Low confidence — mostly regional averages" && (
+        <div className="mt-3 rounded-xl bg-danger-100 px-4 py-3 text-sm" data-testid="regen-escalation-note">
+          <strong>{t("regenScore.escalationTitle")}</strong>
+          <p className="mt-1">{t("regenScore.escalationBody")}</p>
+        </div>
+      )}
+
+      {regen.peer_comparison && (
+        <div className="mt-3 rounded-xl bg-soil-50 px-4 py-3 text-sm" data-testid="regen-peer-comparison">
+          <strong>{t("regenScore.peerComparisonTitle")}</strong>
+          <p className="mt-1">{regen.peer_comparison.summary}</p>
+        </div>
+      )}
+
       {_conflicts && _conflicts.length > 0 && (
         <div className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <strong>{t("regenScore.mixedSignals")}</strong>

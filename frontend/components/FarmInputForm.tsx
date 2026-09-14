@@ -579,6 +579,7 @@ export default function FarmInputForm({
                       district average server-side (see feature_resolver.py). */}
                   <div className="mt-3 rounded-xl bg-soil-50 p-3">
                     <p className="text-sm font-semibold text-soil-700">{t("form.soilTest.numbersIntro")}</p>
+                    <p className="mt-1 text-xs text-soil-600">{t("regenScore.contributionNote")}</p>
                     {/* Prototype keeps this grid at a fixed 2 columns regardless of width. */}
                     <div className="mt-2 grid grid-cols-2 gap-2">
                       <NumberField testId="input-soil-n" label={t("form.soilTest.n")} value={state.soil_test_n} onChange={(v) => set("soil_test_n", v)} />
